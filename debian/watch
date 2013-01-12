@@ -1,0 +1,2 @@
+version=3
+https://github.com/ocamlpro/opam/tags/ /.*/([\d\.]+)\.tar\.gz

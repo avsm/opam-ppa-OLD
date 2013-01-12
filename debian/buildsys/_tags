@@ -1,0 +1,3 @@
+<**/*>: debug, thread
+<**/*.ml*>: annot
+<src/core> or <src/client> or <src/repositories> or <src/scripts> or <src/solver>: include

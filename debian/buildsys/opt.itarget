@@ -1,0 +1,4 @@
+src/client/opamMain.native
+src/scripts/opam_mk_repo.native
+src/scripts/opam_check.native
+src/scripts/opam_repo_check.native

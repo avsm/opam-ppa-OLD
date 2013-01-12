@@ -1,0 +1,47 @@
+#!/usr/bin/make -f
+# -*- makefile -*-
+
+DESTDIR=$(CURDIR)/debian/opam
+include /usr/share/ocaml/ocamlvars.mk
+OCAMLFIND_DESTDIR=$(DESTDIR)/$(OCAML_STDLIB_DIR)
+BINEXT = $(if $(OCAML_OPT_ARCH),native,byte)
+
+%:
+	dh $@ --with ocaml
+
+.PHONY: override_dh_auto_configure
+override_dh_auto_configure:
+	./configure
+	for file in `ls -1 debian/buildsys/`; do \
+		ln -s debian/buildsys/$$file; \
+	done 
+
+.PHONY: override_dh_auto_build
+override_dh_auto_build:
+	ocamlbuild $(OCAML_BEST).otarget
+	$(MAKE) -C doc OPAM=../opamMain.native man
+
+.PHONY: override_dh_auto_test
+override_dh_auto_test:
+	true
+
+.PHONY: override_dh_auto_install
+override_dh_auto_install:
+	mkdir -p $(DESTDIR)/usr/bin
+	cp _build/src/client/opamMain.$(BINEXT)			$(DESTDIR)/usr/bin/opam
+	cp _build/src/scripts/opam_mk_repo.$(BINEXT) 		$(DESTDIR)/usr/bin/opam-mk-repo
+	cp _build/src/scripts/opam_repo_check.$(BINEXT) 	$(DESTDIR)/usr/bin/opam-repo-check
+	cp _build/src/scripts/opam_check.$(BINEXT) 		$(DESTDIR)/usr/bin/opam-check
+
+.PHONY: override_dh_install
+override_dh_install:
+	dh_install --fail-missing
+
+.PHONY: override_dh_auto_clean
+override_dh_auto_clean:
+	for file in `ls -1 debian/buildsys/`; do \
+		$(RM) -f $$file || true; \
+	done
+	[ ! -e Makefile.config ] || $(MAKE) clean
+	$(RM) -rf _build
+	$(RM) -f src/core/opamVersion.ml Makefile.config config.log config.status *.$(BINEXT)

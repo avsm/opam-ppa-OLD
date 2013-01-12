@@ -1,0 +1,36 @@
+From: Mehdi Dogguy <mehdi@debian.org>
+Date: Sat, 12 Jan 2013 23:20:30 +0100
+Subject: Use Re_pcre instead of Pcre
+
+---
+ src/core/opamFile.ml |    2 +-
+ src/core/opamMisc.ml |    2 +-
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/src/core/opamFile.ml b/src/core/opamFile.ml
+index 0161913..9658fc8 100644
+--- a/src/core/opamFile.ml
++++ b/src/core/opamFile.ml
+@@ -1367,7 +1367,7 @@ module Subst = struct
+       let v = OpamVariable.Full.of_string str in
+       OpamVariable.string_of_variable_contents (f v) in
+     let rex = Re_perl.compile_pat "%\\{[^%]+\\}%" in
+-    Pcre.substitute ~rex ~subst t
++    Re_pcre.substitute ~rex ~subst t
+ 
+   let replace_string = replace
+ 
+diff --git a/src/core/opamMisc.ml b/src/core/opamMisc.ml
+index ba24f08..44833d1 100644
+--- a/src/core/opamMisc.ml
++++ b/src/core/opamMisc.ml
+@@ -215,7 +215,7 @@ let contains s c =
+   with Not_found -> false
+ 
+ let split s c =
+-  Pcre.split ~rex:(Re_perl.compile (Re.char c)) s
++  Re_pcre.split ~rex:(Re_perl.compile (Re.char c)) s
+ 
+ (* Remove from a ':' separated list of string the one with the given prefix *)
+ let reset_env_value ~prefix v =
+-- 

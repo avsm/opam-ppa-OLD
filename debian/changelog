@@ -1,0 +1,5 @@
+opam (0.9.0-1) UNRELEASED; urgency=low
+
+  * Initial upload (Closes: #641986)
+
+ -- Mehdi Dogguy <mehdi@debian.org>  Sun, 06 Jan 2013 10:50:00 +0200

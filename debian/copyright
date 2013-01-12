@@ -1,0 +1,60 @@
+Format: http://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+Source: http://opam.ocamlpro.com
+
+Files: m4/ax_compare_version.m4
+Copyright: © 2008 Tim Toolan <toolan@ele.uri.edu>
+License: Other
+ Copying and distribution of this file, with or without modification, are
+ permitted in any medium without royalty provided the copyright notice
+ and this notice are preserved. This file is offered as-is, without any
+ warranty.
+
+Files: m4/ocaml.m4
+Copyright: © 2009      Richard W.M. Jones
+           © 2009      Stefano Zacchiroli
+           © 2000-2005 Olivier Andrieu
+           © 2000-2005 Jean-Christophe Filliâtre
+           © 2000-2005 Georges Mariano
+License: BSD-3
+ Redistribution and use in source and binary forms, with or without
+ modification, are permitted provided that the following conditions
+ are met:
+ * Redistributions of source code must retain the above copyright
+ notice, this list of conditions and the following disclaimer.
+ * Redistributions in binary form must reproduce the above copyright
+ notice, this list of conditions and the following disclaimer in the
+ documentation and/or other materials provided with the distribution.
+ * The names of the contributors may not be used to endorse or promote
+ products derived from this software without specific prior written
+ permission.
+ .
+ THIS SOFTWARE IS PROVIDED BY THE REGENTS AND CONTRIBUTORS ''AS IS''
+ AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO,
+ THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A
+ PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE REGENTS OR
+ CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+ EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+ PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
+ PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY
+ OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ .
+ ocaml.m4 is shipped in the ocaml-tools Debian package.
+
+Files: **/*.ocp
+Copyright: © 2011-2012 OcamlPro
+License: GPL-3
+ See `/usr/share/common-licenses/GPL-3'.
+
+Files: **/*.ml*
+Copyright: © 2012 OcamlPro
+           © 2012 INRIA
+License: GPL-3
+ See `/usr/share/common-licenses/GPL-3'.
+
+Files: debian/*
+Copyright: © 2013 Mehdi Dogguy <mehdi@debian.org>
+License: GPL-3
+ The Debian packaging is licensed under the GPL, see
+ `/usr/share/common-licenses/GPL-3'.
