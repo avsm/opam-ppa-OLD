@@ -14,7 +14,10 @@ Build-Depends:
  libre-ocaml-dev,
  libcmdliner-ocaml-dev,
  libextlib-ocaml-dev,
- libocamlgraph-ocaml-dev (>= 1.8)
+ libocamlgraph-ocaml-dev (>= 1.8),
+ texlive-latex-base,
+ texlive-lang-french,
+ latex-make
 Standards-Version: 3.9.3
 Homepage: http://opam.ocamlpro.com
 Vcs-Git: git://git.debian.org/git/pkg-ocaml-maint/packages/opam.git

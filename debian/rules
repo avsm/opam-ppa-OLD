@@ -20,6 +20,8 @@ override_dh_auto_configure:
 override_dh_auto_build:
 	ocamlbuild $(OCAML_BEST).otarget
 	$(MAKE) -C doc OPAM=../opamMain.native man
+	$(RM) -f doc/dev-manual/dev-manual.pdf
+	$(MAKE) -C doc/dev-manual
 
 .PHONY: override_dh_auto_test
 override_dh_auto_test:
@@ -42,6 +44,6 @@ override_dh_auto_clean:
 	for file in `ls -1 debian/buildsys/`; do \
 		$(RM) -f $$file || true; \
 	done
-	[ ! -e Makefile.config ] || $(MAKE) clean
+	$(MAKE) clean || true
 	$(RM) -rf _build
 	$(RM) -f src/core/opamVersion.ml Makefile.config config.log config.status *.$(BINEXT)
