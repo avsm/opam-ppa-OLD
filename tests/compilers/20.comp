@@ -1,0 +1,6 @@
+opam-version: "1"
+name: "4.00.0"
+preinstalled: true
+env: [
+  [ TEST="1" ]
+]

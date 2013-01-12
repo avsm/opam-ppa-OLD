@@ -1,0 +1,16 @@
+comp += [ "-warn-error" "A" ]
+
+begin library "opam-repositories"
+
+  files   = [
+    "opamHTTP.ml"
+    "opamLocal.ml"
+    "opamGit.ml"
+    "opamDarcs.ml"
+  ]
+
+  requires = [
+    "opam-core"
+  ]
+
+end
