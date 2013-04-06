@@ -59,13 +59,13 @@ module ActionGraph: ACTION_GRAPH with type package = Cudf.package
 
 (** Return the transitive closure of dependencies of [set],
     sorted in topological order *)
-val backward_dependencies: Cudf.universe -> Cudf.package list -> Cudf.package list
+val dependencies: Cudf.universe -> Cudf.package list -> Cudf.package list
 
 (** Return the transitive closure of dependencies of [set],
     sorted in topological order *)
-val forward_dependencies: Cudf.universe -> Cudf.package list -> Cudf.package list
+val reverse_dependencies: Cudf.universe -> Cudf.package list -> Cudf.package list
 
-(** Compute the final universe state *)
+(** Compute the final universe state. *)
 val get_final_universe:
   Cudf.universe ->
   Cudf_types.vpkg request ->
@@ -107,7 +107,7 @@ val s_installed_root: string
 (** {2 Pretty-printing} *)
 
 (** Convert a reason to something readable by the user *)
-val string_of_reason: (Cudf.package -> package) -> Algo.Diagnostic.reason -> string
+val string_of_reason: (Cudf.package -> package) -> Algo.Diagnostic.reason -> string option
 
 (** Convert a list of reasons to something readable by the user *)
 val string_of_reasons: (Cudf.package -> package) -> Algo.Diagnostic.reason list -> string
@@ -120,6 +120,9 @@ val string_of_request: Cudf_types.vpkg request -> string
 
 (** Pretty-print the universe *)
 val string_of_universe: Cudf.universe -> string
+
+(** Pretty-print of packages *)
+val string_of_packages: Cudf.package list -> string
 
 (** {2 External solver} *)
 val external_solver_available: unit -> bool

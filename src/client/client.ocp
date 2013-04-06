@@ -1,12 +1,15 @@
 comp += [ "-warn-error" "A" ]
 
-begin library "opam-lib"
+begin library "opam-client"
 
   files   = [
     "opamState.ml"
+    "opamAction.ml"
     "opamSolution.ml"
-    "opamConfigCommand.ml"
     "opamSwitchCommand.ml"
+    "opamConfigCommand.ml"
+    "opamRepositoryCommand.ml"
+    "opamPinCommand.ml"
     "opamClient.ml"
   ]
 
@@ -24,7 +27,7 @@ begin program "opam"
     "opamMain.ml"
   ]
   requires = [
-    "opam-lib"
+    "opam-client"
     "cmdliner"
  ]
 

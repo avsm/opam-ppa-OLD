@@ -102,9 +102,9 @@ let filter_dependencies f_direction universe packages =
   let packages = Set.of_list packages in
   Graph.closure graph packages
 
-let backward_dependencies = filter_dependencies (fun x -> x)
+let dependencies = filter_dependencies (fun x -> x)
 
-let forward_dependencies = filter_dependencies Graph.mirror
+let reverse_dependencies = filter_dependencies Graph.mirror
 
 let string_of_atom (p, c) =
   let const = function
@@ -122,18 +122,67 @@ let string_of_request r =
 let string_of_universe u =
   string_of_packages (List.sort compare (Cudf.get_packages u))
 
+let vpkg2opamstr cudf2opam (name, constr) =
+  match constr with
+  | None         -> Common.CudfAdd.decode name
+  | Some (r,v) ->
+    let c = Cudf.({
+        package       = name;
+        version       = v;
+        depends       = [];
+        conflicts     = [];
+        provides      = [];
+        installed     = false;
+        was_installed = false;
+        keep          = `Keep_none;
+        pkg_extra     = [];
+      }) in
+    try
+      let nv = cudf2opam c in
+      let str r =
+        let name = OpamPackage.name nv in
+        let version = OpamPackage.version nv in
+        Printf.sprintf "%s%s%s"
+          (OpamPackage.Name.to_string name) r
+          (OpamPackage.Version.to_string version) in
+      match r with
+      | `Eq  -> OpamPackage.to_string nv
+      | `Neq -> str "!="
+      | `Geq -> str ">="
+      | `Gt  -> str ">"
+      | `Leq -> str "<="
+      | `Lt  -> str "<"
+    with _ ->
+      Common.CudfAdd.decode name
+
+
 let string_of_reason cudf2opam r =
   let open Algo.Diagnostic in
   match r with
   | Conflict (i,j,_) ->
     let nvi = cudf2opam i in
     let nvj = cudf2opam j in
-    Printf.sprintf "Conflict between %s and %s."
-      (OpamPackage.to_string nvi) (OpamPackage.to_string nvj)
-  | Missing (i,_) ->
-    let nv = cudf2opam i in
-    Printf.sprintf "Missing %s." (OpamPackage.to_string nv)
-  | Dependency _ -> ""
+    let str = Printf.sprintf
+        "The package %s is in conflict with %s."
+        (OpamPackage.to_string nvi)
+        (OpamPackage.to_string nvj) in
+    Some str
+  | Missing (p,m) ->
+    let of_package =
+      if p.Cudf.package = "dose-dummy-request" then ""
+      else
+        let nv = cudf2opam p in
+        Printf.sprintf " of package %s" (OpamPackage.to_string nv) in
+    let dependencies =
+      if List.length m > 1 then "dependencies" else "dependency" in
+    let deps = List.rev_map (vpkg2opamstr cudf2opam) m in
+    let str = Printf.sprintf
+        "The %s %s%s is not available for your compiler or your OS."
+        dependencies
+        (String.concat ", " deps)
+        of_package in
+    Some str
+  | Dependency _  -> None
 
 let make_chains depends =
   let open Algo.Diagnostic in
@@ -174,12 +223,21 @@ let string_of_reasons cudf2opam reasons =
     | p::t -> Printf.sprintf "%s <- %s" (OpamPackage.to_string (cudf2opam p)) (string_of_chain t) in
   let string_of_chain c = string_of_chain (List.rev c) in
   let b = Buffer.create 1024 in
-  List.iter (fun r ->
-    Printf.bprintf b " - %s\n" (string_of_reason cudf2opam r)
-  ) reasons;
-  List.iter (fun c ->
-    Printf.bprintf b " + %s\n" (string_of_chain c)
-  ) chains;
+  let reasons = OpamMisc.filter_map (string_of_reason cudf2opam) reasons in
+  let reasons = OpamMisc.StringSet.(elements (of_list reasons)) in
+  begin match reasons with
+    | []  -> ()
+    | [r] -> Buffer.add_string b r
+    | _   ->
+      let reasons = String.concat "\n  - " reasons in
+      Printf.bprintf b "Your request cannot be satisfied:\n  - %s" reasons;
+      match chains with
+      | [] -> ()
+      | _  ->
+        let chains = List.map string_of_chain chains in
+        let chains = String.concat "\n  -" chains in
+        Printf.bprintf b "This is due to the following dependency chain(s):\n  - %s" chains
+  end;
   Buffer.contents b
 
 let s_reinstall = "reinstall"
@@ -255,13 +313,13 @@ let to_cudf univ req = (
     req_extra       = [] }
 )
 
-let call_external_solver univ req =
+let call_external_solver ~explain univ req =
   let cudf_request = to_cudf univ req in
   dump_cudf_request cudf_request;
   match Lazy.force aspcud_path with
   | None ->
     (* No external solver is available, use the default one *)
-    Algo.Depsolver.check_request ~explain:true cudf_request
+    Algo.Depsolver.check_request ~explain cudf_request
   | Some path ->
   if Cudf.universe_size univ > 0 then begin
     let cmd = aspcud_command path in
@@ -272,9 +330,8 @@ let call_external_solver univ req =
 
 (* Return the universe in which the system has to go *)
 let get_final_universe univ req =
-  log "get_final_universe req=%s" (string_of_request req);
   let open Algo.Depsolver in
-  match call_external_solver univ req with
+  match call_external_solver ~explain:true univ req with
   | Sat (_,u) -> Success (uninstall "dose-dummy-request" u)
   | Error str -> OpamGlobals.error_and_exit "solver error: %s" str
   | Unsat r   ->
@@ -297,7 +354,8 @@ module Diff = struct
   (* for each pkgname I've the list of all versions that were installed or removed *)
   let diff univ sol =
     let pkgnames =
-      OpamMisc.StringSet.of_list (List.map (fun p -> p.Cudf.package) (Cudf.get_packages univ)) in
+      OpamMisc.StringSet.of_list
+        (List.rev_map (fun p -> p.Cudf.package) (Cudf.get_packages univ)) in
     let h = Hashtbl.create (OpamMisc.StringSet.cardinal pkgnames) in
     let needed_reinstall = Set.of_list (Cudf.get_packages ~filter:need_reinstall univ) in
     OpamMisc.StringSet.iter (fun pkgname ->
@@ -341,7 +399,6 @@ let resolve universe request =
   match get_final_universe universe request with
   | Conflicts e -> Conflicts e
   | Success u   ->
-    log "resolve success=%s" (string_of_universe u);
     try
       let diff = Diff.diff universe u in
       Success (actions_of_diff diff)
@@ -405,7 +462,7 @@ let solution_of_actions ~simple_universe ~complete_universe root_actions =
        some of its optional dependencies disapear, however we must
        recompile it (see below). *)
     let graph = create_graph (fun p -> Set.mem p remove_roots) simple_universe in
-    let to_remove = Graph.closure graph remove_roots in
+    let to_remove = List.rev (Graph.closure graph remove_roots) in
     let root_causes =
       let graph = Graph.PO.O.add_transitive_closure graph in
       let cause pkg =
@@ -417,7 +474,7 @@ let solution_of_actions ~simple_universe ~complete_universe root_actions =
         | [], [] -> Unknown
         | [], _  -> Use sinks
         | _      -> Required_by roots in
-      List.map (fun pkg -> pkg, cause pkg) to_remove in
+      List.rev_map (fun pkg -> pkg, cause pkg) to_remove in
     to_remove, root_causes in
 
   (* the packages to recompile *)
@@ -480,7 +537,7 @@ let solution_of_actions ~simple_universe ~complete_universe root_actions =
         let succ = ActionGraph.succ to_process_complete action in
         let causes = List.filter (fun a -> ActionGraph.out_degree to_process a = 0) succ in
         let causes = List.filter (function To_change _ -> true | _ -> false) causes in
-        let causes = List.map action_contents causes in
+        let causes = List.rev_map action_contents causes in
         let cause = match causes with
           | []  -> Unknown
           | _   -> Required_by causes in
@@ -488,7 +545,7 @@ let solution_of_actions ~simple_universe ~complete_universe root_actions =
       | _, To_recompile pkg ->
         let pred = ActionGraph.pred to_process_complete action in
         let causes = List.filter (fun a -> ActionGraph.in_degree to_process a = 0) pred in
-        let causes = List.map action_contents causes in
+        let causes = List.rev_map action_contents causes in
         let cause = match causes with
           | [] -> Upstream_changes
           | _  -> Use causes in

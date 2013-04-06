@@ -116,6 +116,9 @@ module IntSet: SET with type elt = int
 (** Display a list of strings *)
 val string_of_list: ('a -> string) -> 'a list -> string
 
+(** Display a pretty list: ["x";"y";"z"] -> "x, y and z" *)
+val pretty_list: string list -> string
+
 (** {2 String manipulation} *)
 
 (** Map of strings *)
@@ -123,6 +126,12 @@ module StringMap: MAP with type key = string
 
 (** Set of strings *)
 module StringSet: SET with type elt = string
+
+(** Set of string sets *)
+module StringSetSet: SET with type elt = StringSet.t
+
+(** Map of string sets *)
+module StringSetMap: MAP with type key = StringSet.t
 
 (** Strip a string *)
 val strip: string -> string
@@ -134,7 +143,10 @@ val starts_with: prefix:string -> string -> bool
 val ends_with: suffix:string -> string -> bool
 
 (** Remove a prefix *)
-val remove_prefix: prefix:string -> string -> string option
+val remove_prefix: prefix:string -> string -> string
+
+(** Remove a suffix *)
+val remove_suffix: suffix:string -> string -> string
 
 (** Cut a string at the first occurence of the given char *)
 val cut_at: string -> char -> (string * string) option
@@ -196,3 +208,13 @@ module OP: sig
   val finally: (unit -> 'a) -> (unit -> unit) -> 'a
 
 end
+
+(** When [stdout] refers to a terminal, query the number of columns.
+    Otherwise return [max_int]. *)
+val terminal_columns : unit -> int
+
+(** Get the output of [uname -s] *)
+val uname_s: unit -> string option
+
+(** Guess the shell compat-mode *)
+val guess_shell_compat: unit -> [`sh|`csh|`zsh]

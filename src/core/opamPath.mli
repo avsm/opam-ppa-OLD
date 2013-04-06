@@ -28,6 +28,9 @@ val default: unit -> t
 (** Root dir: {i $opam/} *)
 val root: t -> dirname
 
+(** State cache *)
+val state_cache: t -> filename
+
 (** lock file *)
 val lock: t -> filename
 
@@ -66,6 +69,9 @@ val archives_dir: t -> dirname
 
 (** Return the repository index: {i $opam/repo/index} *)
 val repo_index: t -> filename
+
+(** Init scripts *)
+val init: t -> dirname
 
 (** Switch related paths *)
 module Switch: sig
@@ -159,7 +165,10 @@ module Switch: sig
   (** Pinned package file *)
   val pinned: t -> switch -> filename
 
-  (** Build dir for pinned packages *)
+  (** Build dir for all pinned packages *)
+  val pinned_cache: t -> switch -> dirname
+
+  (** Build dir for a given pinned package *)
   val pinned_dir: t -> switch -> name -> dirname
 
 end
@@ -170,8 +179,8 @@ module Repository: sig
   (** Get the directory root *)
   val root: repository_root -> dirname
 
-  (** lock file *)
-  val lock: repository_root -> filename
+  (** Prefix file {i $opam/repo/prefix} *)
+  val prefix: repository_root -> filename
 
    (** Return the repository folder: {i $opam/repo/$repo} *)
   val create: repository_root -> repository_name -> repository_root
@@ -185,16 +194,22 @@ module Repository: sig
   (** Packages folder: {i $opam/repo/$repo/packages} *)
   val packages_dir: repository_root -> dirname
 
-  (** Package folder: {i $opam/repo/$repo/packages/$NAME.$VERSION} *)
-  val package: repository_root -> package -> dirname
+  (** Package folder: {i $opam/repo/$repo/packages/XXX/$NAME.$VERSION} *)
+  val package: repository_root -> string option -> package -> dirname
 
   (** Return the OPAM file for a given package:
-      {i $opam/repo/$repo/packages/$NAME.$VERSION/opam} *)
-  val opam: repository_root -> package -> filename
+      {i $opam/repo/$repo/packages/XXX/$NAME.$VERSION/opam} *)
+  val opam: repository_root -> string option -> package -> filename
 
   (** Return the description file for a given package:
-      {i $opam/repo/$repo/packages/$NAME.VERSION/descr} *)
-  val descr: repository_root -> package -> filename
+      {i $opam/repo/$repo/packages/XXX/$NAME.VERSION/descr} *)
+  val descr: repository_root -> string option -> package -> filename
+
+  (** urls {i $opma/repo/$repo/package/XXX/$NAME.$VERSION/url} *)
+  val url: repository_root -> string option -> package -> filename
+
+  (** files {i $opam/repo/$repo/packages/XXX/$NAME.$VERSION/files} *)
+  val files: repository_root -> string option -> package -> dirname
 
   (** Return the archive for a given package:
       {i $opam/repo/$repo/archives/$NAME.$VERSION.tar.gz} *)
@@ -219,12 +234,6 @@ module Repository: sig
 
   (** Compiler files: {i $opam/repo/$repo/compilers/} *)
   val compilers_dir: repository_root -> dirname
-
-  (** urls {i $opma/repo/$repo/package/$NAME.$VERSION/url} *)
-  val url: repository_root -> package -> filename
-
-  (** files {i $opam/repo/$repo/packages/$NAME.$VERSION/files} *)
-  val files: repository_root -> package -> dirname
 
   (** Tempory folder {i $opam/repo/$repo/tmp} *)
   val tmp: repository_root -> dirname

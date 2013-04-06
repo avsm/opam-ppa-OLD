@@ -75,10 +75,7 @@ val parse_string_list : value -> string list
 val parse_single_string: value list -> string
 
 (** Parse a pair of strings *)
-val parse_string_pair: value -> string * string
-
-(** Parse a pair of strings from a list of values *)
-val parse_string_pair_of_list: value list -> string * string
+val parse_pair: (value -> 'a) -> (value -> 'b) -> value -> 'a * 'b
 
 (** Try to parse the value using function from the list. All the
     parsing functions are tried until one succeeds. The first argument
@@ -108,6 +105,9 @@ val make_string : string -> value
 (** Create a list of 'things' *)
 val make_list : ('a -> value) -> 'a list -> value
 
+(** Create a list of strings *)
+val make_string_list: string list -> value
+
 (** Create a group of 'things' *)
 val make_group : ('a -> value) -> 'a list -> value
 
@@ -115,7 +115,7 @@ val make_group : ('a -> value) -> 'a list -> value
 val make_option : ('a -> value) -> ('b -> value list) -> ('a * 'b option) -> value
 
 (** Create a pair *)
-val make_pair: ('a -> value) -> ('a * 'a) -> value
+val make_pair: ('a -> value) -> ('b -> value) -> ('a * 'b) -> value
 
 (** Create a pair of strings *)
 val make_string_pair: string * string -> value
@@ -231,3 +231,11 @@ val parse_commands: value -> command list
 
 (** Create a list of commands *)
 val make_commands: command list -> value
+
+(** {2 Tags} *)
+
+(** Parse tags *)
+val parse_tags: value -> tags
+
+(** Make tags *)
+val make_tags: tags -> value

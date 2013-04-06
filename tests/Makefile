@@ -69,7 +69,7 @@ ifeq ($(REPOKIND), git)
 	  touch README && git add README && \
 	  git commit -a -m "Initial commit"
 endif
-	$(OPAM) init --no-base-packages $(REPO) $(OPAM_REPO) -k $(REPOKIND)
+	$(OPAM) init --no-setup --no-base-packages $(REPO) $(OPAM_REPO) -k $(REPOKIND)
 
 upload: $(ARCHIVES)
 ifeq ($(REPOKIND), git)
@@ -124,6 +124,7 @@ else
 	cd packages && \
 	$(OPAM) upload --opam P5.opam --descr P5/README --archive P5.tar.gz $(REPO)
 endif
+	mkdir -p $(OPAM_REPO)/compilers
 	cp compilers/* $(OPAM_REPO)/compilers/
 	$(OPAM) update # update the list of available packages with the one being updated
 
@@ -142,15 +143,19 @@ install-opt:
 	$(OPAM) install P5
 	$(CHECK) -l install-opt-2 P1.1 P5.1
 	$(OPAM) remove P5
-	$(CHECK) -l install-opt-3
+	$(CHECK) -l install-opt-3 P1.1
 	$(OPAM) install P5
 	$(CHECK) -l install-opt-4 P1.1 P5.1
+	$(OPAM) remove P5 -a
+	$(CHECK) -l install-opt-5
+	$(OPAM) install P5
+	$(CHECK) -l install-opt-6 P1.1 P5.1
 	$(OPAM) install P2
-	$(CHECK) -l install-opt-5 P1.1 P2.1 P5.1
-	$(OPAM) remove P5
-	$(CHECK) -l install-opt-6 P1.1 P2.1
-	$(OPAM) remove P2
-	$(CHECK) -l install-opt-7
+	$(CHECK) -l install-opt-7 P1.1 P2.1 P5.1
+	$(OPAM) remove P5 -a
+	$(CHECK) -l install-opt-8 P1.1 P2.1
+	$(OPAM) remove P2 -a
+	$(CHECK) -l install-opt-9
 
 install:
 	$(CHECK) -l install-1
@@ -228,8 +233,8 @@ else
 endif
 	./test-TEST.sh $(wildcard $(OPAM_ROOT)/10/build/P4.3/P4*.env) "1"
 
-packages/%.tar.gz: packages/% packages/%/*
-	cd packages && tar cz $* > $*.tar.gz
+packages/%.tar.gz: packages/% 
+	cd packages && tar czf $*.tar.gz $* 
 
 clean:
 	rm -f $(ARCHIVES)

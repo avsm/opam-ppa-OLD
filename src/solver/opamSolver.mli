@@ -25,6 +25,9 @@ val string_of_request: atom request -> string
 (** Compute statistics about a solution *)
 val stats: solution -> stats
 
+(** Return the new packages in the solution *)
+val new_packages: solution -> package_set
+
 (** Pretty-printing of statistics *)
 val string_of_stats: stats -> string
 
@@ -44,19 +47,24 @@ val print_solution: solution -> unit
     Every element in the solution [list] satisfies the problem given.
     For the ordering, the first element in the list
     is obtained by upgrading from its next element. *)
-val resolve : universe -> atom request -> (solution, string) result
+val resolve :
+  ?verbose:bool ->
+  universe -> atom request -> (solution, string) result
+
+(** Keep only the packages that are installable. *)
+val installable: universe -> package_set
 
 (** Return the topological sort of the transitive dependency closures
     of a collection of packages.*)
-val backward_dependencies :
+val dependencies :
   depopts:bool ->
   installed:bool ->
   universe ->
   package_set ->
   package list
 
-(** Same as [backward_dependencies] but for forward dependencies *)
-val forward_dependencies :
+(** Same as [bdependencies] but for reverse dependencies *)
+val reverse_dependencies :
   depopts:bool ->
   installed:bool ->
   universe ->

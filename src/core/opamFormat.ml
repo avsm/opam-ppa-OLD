@@ -80,7 +80,7 @@ let rec kind = function
   | Option(o,l) -> Printf.sprintf "option(%s,%s)" (kind o) (kinds l)
 
 and kinds l =
-  Printf.sprintf "{%s}" (String.concat " " (List.map kind l))
+  Printf.sprintf "{%s}" (String.concat " " (List.rev_map kind l))
 
 (* Base parsing functions *)
 let parse_bool = function
@@ -104,11 +104,11 @@ let parse_string = function
   | x        -> bad_format "Expecting a string, got %s" (kind x)
 
 let parse_list fn = function
-  | List s -> List.map fn s
+  | List s -> List.rev (List.rev_map fn s)
   | x      -> bad_format "Expecting a list, got %s" (kind x)
 
 let parse_group fn = function
-  | Group g -> List.map fn g
+  | Group g -> List.rev (List.rev_map fn g)
   | x        -> bad_format "Expecting a group, got %s" (kind x)
 
 let parse_option f g = function
@@ -123,7 +123,8 @@ let parse_string_option f = function
   | Option (k,l) -> parse_string k, Some (f l)
   | k            -> parse_string k, None
 
-let parse_string_list = parse_list parse_string
+let parse_string_list =
+  parse_list parse_string
 
 let parse_string_pair_of_list = function
   | [String x; String y] -> (x,y)
@@ -136,6 +137,10 @@ let parse_string_pair = function
 let parse_single_string = function
   | [String x] -> x
   | x          -> bad_format "Expecting a single string, got %s" (kinds x)
+
+let parse_pair fa fb = function
+  | List [a; b] -> (fa a, fb b)
+  | x           -> bad_format "Expecting a pair, got %s" (kind x)
 
 let parse_or fns v =
   let dbg = List.map fst fns in
@@ -172,17 +177,19 @@ let make_bool b = Bool b
 
 let make_int i = Int i
 
-let make_list fn l = List (List.map fn l)
+let make_list fn l = List (List.rev (List.rev_map fn l))
 
-let make_group fn g = Group (List.map fn g)
+let make_string_list = make_list make_string
+
+let make_group fn g = Group (List.rev (List.rev_map fn g))
 
 let make_option f g = function
   | (v, None)   -> f v
   | (v, Some o) -> Option (f v, g o)
 
-let make_pair f (k,v) = List [f k; f v]
+let make_pair fa fb (k,v) = List [fa k; fb v]
 
-let make_string_pair = make_pair make_string
+let make_string_pair = make_pair make_string make_string
 
 (* Printing *)
 
@@ -213,7 +220,7 @@ let rec pretty_string_of_value ?(indent_hint = []) = function
         (pretty_string_of_values ~indent_hint " " l)
 
 and pretty_string_of_values ?(indent_hint = []) sep l =
-  String.concat sep (List.map (pretty_string_of_value ~indent_hint) l)
+  String.concat sep (List.rev (List.rev_map (pretty_string_of_value ~indent_hint) l))
 
 let rec string_of_value = function
   | Symbol s
@@ -226,7 +233,7 @@ let rec string_of_value = function
   | Option(v,l) -> Printf.sprintf "%s {%s}" (string_of_value v) (string_of_values l)
 
 and string_of_values l =
-  String.concat " " (List.map string_of_value l)
+  String.concat " " (List.rev (List.rev_map string_of_value l))
 
 let incr tab = "  " ^ tab
 
@@ -255,7 +262,7 @@ let assoc items n parse =
   with Not_found -> bad_format "Field %S is missing" n
 
 let get_all_section_by_kind items kind =
-  try List.map snd (List.find_all (fun (k,_) -> k=kind) (sections items))
+  try List.rev_map snd (List.find_all (fun (k,_) -> k=kind) (sections items))
   with Not_found -> bad_format "Section kind %S is missing" kind
 
 let get_section_by_kind items kind =
@@ -263,7 +270,7 @@ let get_section_by_kind items kind =
   with Not_found -> bad_format "Section kind %S is missing" kind
 
 let assoc_sections items kind parse =
-  List.map parse (get_all_section_by_kind items kind)
+  List.rev_map parse (get_all_section_by_kind items kind)
 
 let assoc_option items n parse =
   try Some (parse (List.assoc n (variables items)))
@@ -307,7 +314,7 @@ let parse_formulas opt t =
     | []                     -> Empty
     | [String n]             -> Atom (name n, Empty)
     | [Option(String n, g)]  -> Atom (name n, parse_constraints g)
-    | [Group g]              -> aux g
+    | [Group g]              -> Block (aux g)
     | e1 :: Symbol "|" :: e2 -> Or (aux [e1], aux e2)
     | e1 :: Symbol "&" :: e2 -> And (aux [e1], aux e2)
     | e1 :: e2 when opt      -> Or (aux [e1], aux e2)
@@ -347,6 +354,7 @@ let parse_relop = function
   | ">"  -> `Gt
   | "<=" -> `Leq
   | "<"  -> `Lt
+  | "!"  -> `Neq
   | _    -> invalid_arg "parse_relop"
 
 let string_of_relop = function
@@ -355,12 +363,17 @@ let string_of_relop = function
   | `Gt  -> ">"
   | `Leq -> "<="
   | `Lt  -> "<"
+  | `Neq -> "!"
   | _    -> invalid_arg "parse_relop"
 
 let parse_compiler_constraint t =
   let rec aux = function
     | []                         -> Empty
-    | [Symbol r; String v ]      ->
+    | [Symbol r; Ident v] when
+        v = OpamCompiler.to_string OpamCompiler.system ->
+      let version = OpamCompiler.Version.of_string v in
+      Atom (parse_relop r, version)
+    | [Symbol r; String v]       ->
       (try Atom (parse_relop r, OpamCompiler.Version.of_string v)
        with _ -> bad_format "Expecting a relop, got %s" r)
     | [Group g]                  -> Block (aux g)
@@ -374,7 +387,13 @@ let parse_compiler_constraint t =
 let make_compiler_constraint t =
   let rec aux = function
     | Empty       -> []
-    | Atom (r, v) -> [Symbol (string_of_relop r); String (OpamCompiler.Version.to_string  v)]
+    | Atom (r, v) ->
+      let mk version = [ Symbol (string_of_relop r); version ] in
+      let system = OpamCompiler.to_string OpamCompiler.system in
+      if OpamCompiler.Version.to_string v = system then
+        mk (Ident system)
+      else
+        mk (String (OpamCompiler.Version.to_string v))
     | Block f     -> [Group (aux f)]
     | And(e,f)    -> aux e @ [Symbol "&"] @ aux f
     | Or(e,f)     -> aux e @ [Symbol "|"] @ aux f in
@@ -388,10 +407,10 @@ let parse_os_constraint l =
     | [Group g]                                  -> Block (aux g)
     | [String os]                                -> pos os
     | [Symbol "!"; String os]                    -> neg os
-    | String os :: String "&" :: l               -> And (pos os, aux l)
-    | Symbol "!" :: String os :: String "&" :: l -> And (neg os, aux l)
-    | String os :: String "|" :: l               -> Or (pos os, aux l)
-    | Symbol "!" :: String os :: String "|" :: l -> Or (neg os, aux l)
+    | String os :: Symbol "&" :: l               -> And (pos os, aux l)
+    | Symbol "!" :: String os :: Symbol "&" :: l -> And (neg os, aux l)
+    | String os :: Symbol "|" :: l               -> Or (pos os, aux l)
+    | Symbol "!" :: String os :: Symbol "|" :: l -> Or (neg os, aux l)
     | l -> bad_format "Expecting an OS constraint, got %s" (kinds l) in
   match l with
   | List l -> aux l
@@ -500,7 +519,43 @@ let parse_arg =
 let parse_command =
   parse_option (parse_list parse_arg) parse_filter
 
-let parse_commands = parse_or [
-  "command"     , (fun x -> [parse_command x]);
-  "command-list", parse_list parse_command;
-]
+let parse_commands =
+  parse_or [
+    "command"     , (fun x -> [parse_command x]);
+    "command-list", parse_list parse_command;
+  ]
+
+
+(* TAGS *)
+
+let parse_string_set =
+  parse_or [
+    "string"     , (parse_string |> OpamMisc.StringSet.singleton);
+    "string-list", (parse_string_list |> OpamMisc.StringSet.of_list);
+  ]
+
+let make_string_set s =
+  if OpamMisc.StringSet.cardinal s = 1 then
+    make_string (OpamMisc.StringSet.choose s)
+  else
+    make_list make_string (OpamMisc.StringSet.elements s)
+
+let parse_tag_line =
+  let fn = parse_string_set in
+  parse_pair fn fn
+
+let make_tag_line =
+  let fn = make_string_set in
+  make_pair fn fn
+
+let parse_tags v =
+  let l =
+    parse_or [
+      "tagline"     , (fun x -> [parse_tag_line x]);
+      "tagline-list", (parse_list parse_tag_line);
+    ] v in
+  OpamMisc.StringSetMap.of_list l
+
+let make_tags t =
+  let l = OpamMisc.StringSetMap.bindings t in
+  make_list make_tag_line l

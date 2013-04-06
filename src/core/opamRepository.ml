@@ -95,7 +95,9 @@ let init r =
   let module B = (val find_backend r: BACKEND) in
   let open OpamPath.Repository in
   let repo = repo r in
-  OpamFilename.mkdir (root repo);
+  let repodir = root repo in
+  OpamFilename.rmdir repodir;
+  OpamFilename.mkdir repodir;
   OpamFile.Repo_config.write (config repo) r;
   OpamFilename.mkdir (packages_dir repo);
   OpamFilename.mkdir (archives_dir repo);
@@ -103,16 +105,17 @@ let init r =
   OpamFilename.mkdir (upload_dir repo);
   OpamFilename.in_dir (root repo) (fun () -> B.init ~address:r.repo_address)
 
-let nv_set_of_files files =
+let nv_set_of_files ~all files =
   OpamPackage.Set.of_list
     (OpamMisc.filter_map
-       OpamPackage.of_filename
-       (OpamFilename.Set.elements files))
+       (OpamPackage.of_filename ~all)
+       (OpamFilename.Set.elements files)
+    )
 
 let read_tmp dir =
   let dirs =
     if OpamFilename.exists_dir dir then
-      OpamFilename.Dir.Set.of_list (OpamFilename.list_dirs dir)
+      OpamFilename.Dir.Set.of_list (OpamFilename.sub_dirs dir)
     else
       OpamFilename.Dir.Set.empty in
   OpamPackage.Set.of_list
@@ -127,7 +130,7 @@ let upload r =
   let address = r.repo_address in
   let module B = (val find_backend r: BACKEND) in
   let files = OpamFilename.in_dir local_dir (fun () -> B.upload_dir ~address upload_dir) in
-  let packages = nv_set_of_files files in
+  let packages = nv_set_of_files ~all:true files in
   OpamGlobals.msg "The following packages have been uploaded:\n";
   OpamPackage.Set.iter (fun nv ->
     OpamGlobals.msg "  - %s\n" (OpamPackage.to_string nv)
@@ -143,6 +146,18 @@ let map fn = function
   | Up_to_date x  -> Up_to_date (fn x)
   | Not_available -> Not_available
 
+let invalid_checksum file ~actual ~expected =
+  OpamSystem.internal_error
+    "Wrong checksum for %s:\n\
+    \  - %s [expected result]\n\
+    \  - %s [actual result]\n\
+     This is surely due to outdated package descriptions and should be fixed by \
+     running `opam update`. In case an update does not fix that problem, you can \
+     use the `--no-checksums` command-line option to bypass any checksum checks."
+    (OpamFilename.to_string file)
+    expected
+    actual
+
 (* Download file f in the current directory *)
 let download_file ~gener_digest kind nv remote_file checksum =
   log "download_file %s %s %s"
@@ -156,10 +171,11 @@ let download_file ~gener_digest kind nv remote_file checksum =
       | Some c -> OpamFilename.digest file = c in
     if not gener_digest && not !OpamGlobals.no_checksums && not (digest ()) then (
       OpamGlobals.error "Error: invalid checksum.";
-      OpamSystem.internal_error "Wrong checksum for %s:\n  - %s [expecting result]\n  - %s [actual result]"
-        (OpamFilename.to_string remote_file)
-        (match checksum with Some c -> c | None -> "<none>")
-        (OpamFilename.digest file)
+      let actual = OpamFilename.digest file in
+      let expected = match checksum with
+        | Some c -> c
+        | None -> "<none>" in
+      invalid_checksum remote_file ~actual ~expected
     ) in
   let result = B.download_file ?checksum nv remote_file in
   iter check result;
@@ -195,12 +211,26 @@ let download_archive r nv =
   let module B = (val find_backend r: BACKEND) in
   B.download_archive ~address:r.repo_address nv
 
+let prefix local_repo nv =
+  let map = OpamFile.Prefix.safe_read (OpamPath.Repository.prefix local_repo) in
+  let name = OpamPackage.name nv in
+  if OpamPackage.Name.Map.mem name map then
+    Some (OpamPackage.Name.Map.find name map)
+  else
+    None
+
+let find_prefix prefix nv =
+  let name = OpamPackage.name nv in
+  if not (OpamPackage.Name.Map.mem name prefix) then None
+  else Some (OpamPackage.Name.Map.find name prefix)
+
 (* Copy the file in local_repo in current dir *)
 let copy_files local_repo nv =
   let local_dir = OpamFilename.cwd () in
+  let prefix = prefix local_repo nv in
   (* Eventually add the <package>/files/* to the extracted dir *)
   log "Adding the files to the archive";
-  let files = OpamFilename.list_files (OpamPath.Repository.files local_repo nv) in
+  let files = OpamFilename.rec_files (OpamPath.Repository.files local_repo prefix nv) in
   if files <> [] then (
     if not (OpamFilename.exists_dir local_dir) then
       OpamFilename.mkdir local_dir;
@@ -224,7 +254,8 @@ let make_archive ?(gener_digest=false) ?local_path nv =
      specified *)
   let local_repo = local_repo () in
   let local_dir = OpamPath.Repository.root local_repo in
-  let url_f = OpamPath.Repository.url local_repo nv in
+  let prefix = prefix local_repo nv in
+  let url_f = OpamPath.Repository.url local_repo prefix nv in
 
   let download_dir = OpamPath.Repository.tmp_dir local_repo nv in
   OpamFilename.mkdir download_dir;
@@ -269,7 +300,7 @@ let make_archive ?(gener_digest=false) ?local_path nv =
             (OpamFilename.Dir.to_string dir)
             (OpamFilename.Dir.to_string extract_dir);
           if dir <> extract_dir then
-          OpamFilename.copy_dir download_dir extract_dir
+          OpamFilename.copy_unique_dir ~src:download_dir ~dst:extract_dir
     );
 
     let extract_dir = match local_path with
@@ -325,10 +356,11 @@ let check_version repo =
       ) repo
     with _ ->
       OpamVersion.of_string "0.7.5" in
-  if OpamVersion.compare repo_version OpamVersion.current >= 0 then
+  if OpamVersion.compare repo_version OpamVersion.current > 0 then
     OpamSystem.internal_error
       "\nThe current version of OPAM cannot read the repository. \
-       You should upgrade to at least the version %s.\n" (OpamVersion.to_string repo_version)
+       You should upgrade to at least version %s.\n"
+      (OpamVersion.to_string repo_version)
 
 let update r =
   log "update %s" (to_string r);
@@ -339,23 +371,27 @@ let update r =
 
   check_version repo;
 
-  let updated_packages = nv_set_of_files updated_files in
-
+  let updated_packages = nv_set_of_files ~all:false updated_files in
   (* Clean-up archives and tmp files on URL changes *)
   OpamPackage.Set.iter (fun nv ->
-    let url_f = OpamPath.Repository.url repo nv in
-    if OpamFilename.Set.mem url_f updated_files then begin
+    let prefix = prefix repo nv in
+    let url_f = OpamPath.Repository.url repo prefix nv in
+    let files = OpamPath.Repository.files repo prefix nv in
+    if OpamFilename.Set.mem url_f updated_files
+    || OpamFilename.Set.exists (OpamFilename.starts_with files) updated_files
+    then (
       let tmp_dir = OpamPath.Repository.tmp_dir repo nv in
       OpamFilename.rmdir tmp_dir;
       OpamFilename.remove (OpamPath.Repository.archive repo nv);
-    end
+    )
   ) updated_packages;
 
   (* For each package in the cache, look at what changed upstream *)
   let cached_packages = read_tmp (OpamPath.Repository.tmp repo) in
   log "cached_packages: %s" (OpamPackage.Set.to_string cached_packages);
   let updated_cached_packages = OpamPackage.Set.filter (fun nv ->
-    let url_f = OpamPath.Repository.url repo nv in
+    let prefix = prefix repo nv in
+    let url_f = OpamPath.Repository.url repo prefix nv in
     if OpamFilename.exists url_f then (
       let url = OpamFile.URL.read url_f in
       let kind = match OpamFile.URL.kind url with
@@ -379,31 +415,54 @@ let update r =
 
 let find_backend = find_backend_by_kind
 
-let packages r =
-  let dir = OpamPath.Repository.packages_dir r in
-  if OpamFilename.exists_dir dir then (
-    let all = OpamFilename.list_dirs dir in
-    let basenames = List.map OpamFilename.basename_dir all in
-    OpamPackage.Set.of_list
-      (OpamMisc.filter_map
-         (OpamFilename.Base.to_string |> OpamPackage.of_string_opt)
-         basenames)
-  ) else
-    OpamPackage.Set.empty
+let extract_prefix r dir nv =
+  let prefix =
+    let prefix = OpamFilename.Dir.to_string (OpamPath.Repository.packages_dir r) in
+    prefix ^ Filename.dir_sep in
+  let suffix =
+    let suffix = OpamPackage.to_string nv in
+    Filename.dir_sep ^ suffix in
+  let dir = OpamFilename.Dir.to_string dir in
+  OpamMisc.remove_prefix ~prefix (OpamMisc.remove_suffix ~suffix dir)
 
-let versions r n =
-  OpamPackage.versions_of_packages
-    (OpamPackage.Set.filter
-       (fun nv -> OpamPackage.name nv = n)
-       (packages r))
+(* Used on upgrade to get the list of available packages in the repository *)
+let packages r =
+  log "repository-package %s" (OpamFilename.Dir.to_string r);
+  let dir = OpamPath.Repository.packages_dir r in
+  let empty = OpamPackage.Name.Map.empty, OpamPackage.Set.empty in
+  if OpamFilename.exists_dir dir then (
+    let files = OpamFilename.rec_files dir in
+    List.fold_left (fun (prefix, packages as acc) file ->
+      if OpamFilename.basename file = OpamFilename.Base.of_string "opam" then (
+        let dir  = OpamFilename.dirname file in
+        let base = OpamFilename.basename_dir dir in
+        let base = OpamFilename.Base.to_string base in
+        match OpamPackage.of_string_opt base with
+        | None    -> acc
+        | Some nv ->
+          let packages = OpamPackage.Set.add nv packages in
+          let prefix =
+            if dir = OpamPath.Repository.package r None nv then prefix
+            else
+              OpamPackage.Name.Map.add
+                (OpamPackage.name nv)
+                (extract_prefix r dir nv)
+                prefix in
+          prefix, packages
+      ) else
+        acc
+    ) empty files
+  ) else
+    empty
 
 let compilers r =
   OpamCompiler.list (OpamPath.Repository.compilers_dir r)
 
 let files r nv =
+  let prefix = prefix r nv in
   let l =
-    if OpamFilename.exists_dir (OpamPath.Repository.files r nv) then
-      OpamFilename.list_files (OpamPath.Repository.files r nv)
+    if OpamFilename.exists_dir (OpamPath.Repository.files r prefix nv) then
+      OpamFilename.rec_files (OpamPath.Repository.files r prefix nv)
     else
       [] in
   OpamFilename.Set.of_list l

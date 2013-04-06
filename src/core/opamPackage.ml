@@ -92,13 +92,15 @@ let of_string s = match of_string_opt s with
 
 (* XXX: this function is quite hackish, as it mainly depends on the shape the paths
    built in path.ml *)
-let of_filename f =
+let of_filename ~all f =
   let f = OpamMisc.strip (OpamFilename.to_string f) in
   let base = Filename.basename f in
   let parent = Filename.basename (Filename.dirname f) in
   match base with
-  | "opam" | "url" -> of_string_opt parent
-  | _ ->
+  | "descr"
+  | "opam" -> if all then of_string_opt parent else None
+  | "url"  -> of_string_opt parent
+  | _      ->
     if Filename.check_suffix base ".opam" then
       of_string_opt (Filename.chop_suffix base ".opam")
     else if Filename.check_suffix base "+opam.tar.gz" then
@@ -149,33 +151,21 @@ let to_map nv =
     Name.Map.add name (Version.Set.add version versions) (Name.Map.remove name map)
   ) nv Name.Map.empty
 
-let opam_files dir =
-  if OpamFilename.exists_dir dir then (
-    let files = OpamFilename.list_files dir in
-    let files = List.filter (fun f -> OpamFilename.check_suffix f ".opam") files in
-    List.fold_left (fun set file ->
-      match of_filename file with
-      | None    -> set
-      | Some nv -> Set.add nv set
-    ) Set.empty files
-  ) else
-    Set.empty
-
 let list dir =
   log "list %s" (OpamFilename.Dir.to_string dir);
   if OpamFilename.exists_dir dir then (
     let dot_opams =
-      let files = OpamFilename.list_files dir in
+      let files = OpamFilename.rec_files dir in
       let files = List.filter (fun f -> OpamFilename.check_suffix f ".opam") files in
       List.fold_left (fun set file ->
-        match of_filename file with
+        match of_filename ~all:true file with
         | None    ->
           log "%s is not a valid package filename!" (OpamFilename.to_string file);
           set
         | Some nv -> Set.add nv set
       ) Set.empty files in
     let opam =
-      let all = OpamFilename.list_dirs dir in
+      let all = OpamFilename.rec_dirs dir in
       let basenames = List.map OpamFilename.basename_dir all in
       Set.of_list
         (OpamMisc.filter_map
@@ -210,3 +200,37 @@ let versions_of_name packages n =
        (fun nv -> name nv = n)
        packages)
 
+let unknown name version =
+  match version with
+  | None   ->
+    OpamGlobals.error_and_exit
+      "%S is not a valid package."
+      (Name.to_string name)
+  | Some v ->
+    OpamGlobals.error_and_exit
+      "The package %S has no version %s."
+      (Name.to_string name)
+      (Version.to_string v)
+
+let unavailable name version =
+  match version with
+  | None   ->
+    OpamGlobals.error_and_exit
+      "%S is not available for your compiler or your OS."
+      (Name.to_string name)
+  | Some v ->
+    OpamGlobals.error_and_exit
+      "Version %s of %S is incompatible with your compiler or your OS."
+      (Version.to_string v)
+      (Name.to_string name)
+
+let unavailable_because_pinned name = function
+  | None   ->
+    OpamGlobals.error_and_exit
+      "%S is not available because the package is pinned."
+      (Name.to_string name)
+  | Some v ->
+    OpamGlobals.error_and_exit
+      "Version %s of %S is not available because the package is pinned."
+      (Version.to_string v)
+      (Name.to_string name)
