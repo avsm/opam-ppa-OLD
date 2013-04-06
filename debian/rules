@@ -12,6 +12,7 @@ BINEXT = $(if $(OCAML_OPT_ARCH),native,byte)
 .PHONY: override_dh_auto_configure
 override_dh_auto_configure:
 	./configure
+	$(MAKE) autogen
 	for file in `ls -1 debian/buildsys/`; do \
 		ln -s debian/buildsys/$$file; \
 	done 
