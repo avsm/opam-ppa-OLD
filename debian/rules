@@ -49,3 +49,7 @@ override_dh_auto_clean:
 	$(MAKE) clean || true
 	$(RM) -rf _build
 	$(RM) -f src/core/opamVersion.ml Makefile.config config.log config.status *.$(BINEXT)
+
+.PHONY: override_dh_compress
+override_dh_compress:
+	dh_compress -X.pdf
