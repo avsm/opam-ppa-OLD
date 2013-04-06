@@ -19,7 +19,7 @@ override_dh_auto_configure:
 .PHONY: override_dh_auto_build
 override_dh_auto_build:
 	ocamlbuild $(OCAML_BEST).otarget
-	$(MAKE) -C doc OPAM=../opamMain.native man
+	$(MAKE) -C doc OPAM=../opamMain.$(BINEXT) man
 	$(RM) -f doc/dev-manual/dev-manual.pdf
 	$(MAKE) -C doc/dev-manual
 
