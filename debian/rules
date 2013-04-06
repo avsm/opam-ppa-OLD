@@ -33,7 +33,6 @@ override_dh_auto_install:
 	cp _build/src/client/opamMain.$(BINEXT)			$(DESTDIR)/usr/bin/opam
 	cp _build/src/scripts/opam_mk_repo.$(BINEXT) 		$(DESTDIR)/usr/bin/opam-mk-repo
 	cp _build/src/scripts/opam_repo_check.$(BINEXT) 	$(DESTDIR)/usr/bin/opam-repo-check
-	cp _build/src/scripts/opam_check.$(BINEXT) 		$(DESTDIR)/usr/bin/opam-check
 
 .PHONY: override_dh_install
 override_dh_install:

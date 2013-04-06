@@ -1,4 +1,3 @@
 src/client/opamMain.byte
 src/scripts/opam_mk_repo.byte
-src/scripts/opam_check.byte
 src/scripts/opam_repo_check.byte
