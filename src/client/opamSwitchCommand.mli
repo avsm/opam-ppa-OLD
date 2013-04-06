@@ -13,30 +13,31 @@
 (*                                                                     *)
 (***********************************************************************)
 
-(** Switch commands *)
+(** Switch commands. *)
 
 open OpamTypes
 
-(** Install a new switch *)
-val install: quiet:bool -> switch -> compiler -> unit
+(** Install a new switch. *)
+val install: quiet:bool -> warning:bool -> switch -> compiler -> unit
 
-(** Import a file which contains the packages to install *)
+(** Import a file which contains the packages to install. *)
 val import: filename option -> unit
 
-(** Export a file which contains the installed packages *)
+(** Export a file which contains the installed packages. *)
 val export: filename option -> unit
 
-(** Remove the given compiler switch *)
+(** Remove the given compiler switch. *)
 val remove: switch -> unit
 
-(** Switch to the given compiler switch *)
-val switch: quiet:bool -> switch -> unit
+(** Switch to the given compiler switch. *)
+val switch: quiet:bool -> warning:bool -> switch -> unit
 
-(** Reinstall the given compiler switch *)
+(** Reinstall the given compiler switch. *)
 val reinstall: switch -> unit
 
-(** Display the current compiler switch *)
-val current: unit -> unit
+(** Display the current compiler switch. *)
+val show: unit -> unit
 
-(** List all the available compiler switches *)
+(** List all the available compiler switches. *)
 val list: print_short:bool -> installed_only:bool -> unit
+

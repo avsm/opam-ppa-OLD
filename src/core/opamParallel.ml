@@ -18,6 +18,8 @@ let log fmt = OpamGlobals.log "PARALLEL" fmt
 module type G = sig
   include Graph.Sig.G
   include Graph.Topological.G with type t := t and module V := V
+  val has_cycle: t -> bool
+  val scc_list: t -> V.t list list
 end
 
 type error =
@@ -40,7 +42,7 @@ module type SIG = sig
     unit
 
   exception Errors of (G.V.t * error) list * G.V.t list
-
+  exception Cyclic of G.V.t list list
 end
 
 module Make (G : G) = struct
@@ -105,7 +107,6 @@ module Make (G : G) = struct
      by [Unix.fork]. [wait pids] waits until a process in [pids]
      terminates. *)
   (* XXX: this will not work under windows *)
-
   let string_of_pids pids =
     Printf.sprintf "{%s}"
       (String.concat ","
@@ -130,9 +131,15 @@ module Make (G : G) = struct
           (string_of_pids pids);
         aux ()
       ) in
-    aux ()
+
+    try aux ()
+    with Sys.Break as e ->
+      OpamGlobals.msg " Interrupted!\n";
+      ignore (aux ());
+      raise e
 
   exception Errors of (G.V.t * error) list * G.V.t list
+  exception Cyclic of G.V.t list list
 
   let (--) = S.diff
   let (++) = S.union
@@ -170,11 +177,14 @@ module Make (G : G) = struct
     let error_nodes () =
       M.fold (fun n _ accu -> S.add n accu) !errors S.empty in
     (* All the node not successfully proceeded. This include error worker and error nodes. *)
-    let all_nodes = G.fold_vertex S.add !t.graph S.empty in
-    let remaining_nodes () =
-      all_nodes -- !t.visited in
 
     log "Iterate over %d task(s) with %d process(es)" (G.nb_vertex g) n;
+
+    if G.has_cycle !t.graph then (
+      let sccs = G.scc_list !t.graph in
+      let sccs = List.filter (fun l -> List.length l > 1) sccs in
+      raise (Cyclic sccs)
+    );
 
     (* nslots is the number of free slots *)
     let rec loop nslots =
@@ -186,8 +196,17 @@ module Make (G : G) = struct
         if M.is_empty !errors then
           log "loop completed (without errors)"
         else
-          let remaining = remaining_nodes () -- error_nodes () in
-          raise (Errors (M.bindings !errors, S.elements remaining))
+          (* Generate the remaining nodes in topological order *)
+          let error_nodes = error_nodes () in
+          let remaining =
+            G.fold_vertex (fun v l ->
+              if S.mem v !t.visited
+              || S.mem v error_nodes then
+                l
+              else
+                v::l) !t.graph [] in
+          let remaining = List.rev remaining in
+          raise (Errors (M.bindings !errors, remaining))
 
       else if nslots <= 0 || (worker_nodes () ++ error_nodes ()) =|= !t.roots then (
 
@@ -228,6 +247,7 @@ module Make (G : G) = struct
         | 0   ->
             log "Spawning a new process";
             Sys.set_signal Sys.sigint (Sys.Signal_handle (fun _ -> OpamGlobals.error "Interrupted"; exit 1));
+            Sys.catch_break true;
             let return p =
               let to_parent = open_out_bin error_file in
               write_error to_parent p;

@@ -42,6 +42,9 @@ val link: string -> string -> unit
     expanded and relative paths become absolute. *)
 val real_path: string -> string
 
+(** Return the contents of a channel. *)
+val string_of_channel: in_channel -> string
+
 (** [read filename] returns the contents of [filename] *)
 val read: string -> string
 
@@ -75,8 +78,12 @@ val files_with_links: string -> string list
     Links behaving like directory are crossed. *)
 val rec_files: string -> string list
 
-(** Return the version of the current OCaml compiler. If no OCaml
-    compiler is present in the path, then it returns [None]. *)
+(** [rec_dirs dir] return the list list of all directories recursively
+   (going through symbolink links). *)
+val rec_dirs: string -> string list
+
+  (** Return the version of the current OCaml compiler. If no OCaml
+      compiler is present in the path, then it returns [None]. *)
 val ocaml_version: string option Lazy.t
 
 (** Return the path where the system ocamlc library is installed *)
@@ -91,6 +98,9 @@ val directories_with_links: string -> string list
 
 (** a command is a list of words *)
 type command = string list
+
+(** Test wether a command exists in the environement. *)
+val command_exists: ?env:string array -> string -> bool
 
 (** [command cmd] executes the command [cmd] in the correct OPAM
     environment. *)

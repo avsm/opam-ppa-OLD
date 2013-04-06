@@ -2,8 +2,10 @@ comp += [ "-warn-error" "A" ]
 
 begin library "opam-core"
   files   = [
+    "opamScript.ml"
     "opamMisc.ml"
     "opamGlobals.ml"
+    "opamGitVersion.ml"
     "opamVersion.ml"
     "opamProcess.ml"
     "opamSystem.ml"

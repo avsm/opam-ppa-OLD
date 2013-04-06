@@ -15,6 +15,8 @@
 
 open OpamMisc.OP
 
+exception Lexer_error of string
+
 type basename = OpamFilename.Base.t
 
 type dirname = OpamFilename.Dir.t
@@ -105,6 +107,8 @@ type compiler = OpamCompiler.t
 
 type compiler_set = OpamCompiler.Set.t
 
+type 'a compiler_map = 'a OpamCompiler.Map.t
+
 type compiler_version = OpamCompiler.Version.t
 
 type opam_version = OpamVersion.t
@@ -130,6 +134,19 @@ type ppflag =
   | Camlp4 of string list
   | Cmd of string list
 
+type shell = [`csh|`zsh|`sh]
+
+type global_config = {
+  complete   : bool;
+  switch_eval: bool;
+}
+
+type user_config = {
+  shell      : shell;
+  ocamlinit  : bool;
+  dot_profile: filename option;
+}
+
 (* Command line arguments *)
 
 (* Upload arguments *)
@@ -145,29 +162,7 @@ let string_of_upload u =
     (OpamFilename.to_string u.upl_descr)
     (OpamFilename.to_string u.upl_archive)
 
-(* Remote arguments *)
-type remote =
-  | RList
-  | RAdd of repository_name * repository_kind * dirname * int option
-  | RRm of repository_name
-  | RPriority of repository_name * int
-
-let string_of_remote = function
-  | RList -> "list"
-  | RAdd (r, k, d, p) ->
-    Printf.sprintf "add %s %s %s %s"
-      (OpamRepositoryName.to_string r)
-      (OpamFilename.Dir.to_string d)
-      (string_of_repository_kind k)
-      (match p with None -> "-" | Some p -> string_of_int p)
-  | RRm  r ->
-    Printf.sprintf "rm %s"
-      (OpamRepositoryName.to_string r)
-  | RPriority (r, p) ->
-    Printf.sprintf "priority %s %d"
-      (OpamRepositoryName.to_string r) p
-
-type config_option = {
+type config = {
   conf_is_rec : bool;
   conf_is_byte: bool;
   conf_is_link: bool;
@@ -256,14 +251,6 @@ let string_of_pin p =
     (OpamPackage.Name.to_string p.pin_package)
     (path_of_pin_option p.pin_option)
     (string_of_pin_kind (kind_of_pin_option p.pin_option))
-
-type config =
-  | CEnv of bool
-  | CList of name list
-  | CVariable of full_variable
-  | CIncludes of bool * (name list)
-  | CCompil   of config_option
-  | CSubst    of basename list
 
 (** Variable contents *)
 type variable_contents = OpamVariable.variable_contents =
@@ -391,11 +378,15 @@ module MakeActionGraph (Pkg: PKG) = struct
   end
   module PG = Graph.Imperative.Digraph.ConcreteBidirectional (Vertex)
   module Topological = Graph.Topological.Make (PG)
+  module Traverse = Graph.Traverse.Dfs(PG)
+  module Components = Graph.Components.Make(PG)
   module O = Graph.Oper.I (PG)
   module Parallel = OpamParallel.Make(struct
-    include PG
-    include Topological
-  end)
+      include PG
+      include Topological
+      include Traverse
+      include Components
+    end)
   include PG
   include O
   type solution = {
@@ -478,6 +469,7 @@ type user_action =
   | Import of name_set
 
 type universe = {
+  u_packages : package_set;
   u_installed: package_set;
   u_available: package_set;
   u_depends  : formula package_map;
@@ -491,3 +483,5 @@ type lock =
   | Read_lock of (unit -> unit)
   | Global_lock of (unit -> unit)
   | Switch_lock of (unit -> unit)
+
+type tags = OpamMisc.StringSet.t OpamMisc.StringSetMap.t

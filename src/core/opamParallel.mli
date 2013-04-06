@@ -19,6 +19,8 @@
 module type G = sig
   include Graph.Sig.G
   include Graph.Topological.G with type t := t and module V := V
+  val has_cycle: t -> bool
+  val scc_list: t -> V.t list list
 end
 
 type error =
@@ -43,6 +45,9 @@ module type SIG = sig
 
   (** Errors ([errors], [remaining]) *)
   exception Errors of (G.V.t * error) list * G.V.t list
+
+  (** The graph is cyclic. *)
+  exception Cyclic of G.V.t list list
 
 end
 

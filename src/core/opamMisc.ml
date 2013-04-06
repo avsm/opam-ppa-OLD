@@ -44,7 +44,24 @@ end
 
 let string_of_list f = function
   | [] -> "{}"
-  | l  -> Printf.sprintf "{ %s }" (String.concat ", " (List.map f l))
+  | l  ->
+    let buf = Buffer.create 1024 in
+    let n = List.length l in
+    let i = ref 0 in
+    Buffer.add_string buf "{ ";
+    List.iter (fun x ->
+      incr i;
+      Buffer.add_string buf (f x);
+      if !i <> n then Buffer.add_string buf ", ";
+    ) l;
+    Buffer.add_string buf " }";
+    Buffer.contents buf
+
+let rec pretty_list = function
+  | []    -> ""
+  | [a]   -> a
+  | [a;b] -> Printf.sprintf "%s and %s" a b
+  | h::t  -> Printf.sprintf "%s, %s" h (pretty_list t)
 
 module Set = struct
 
@@ -64,11 +81,11 @@ module Set = struct
       List.fold_left (fun set e -> add e set) empty l
 
     let to_string s =
-      let l = fold (fun nv l -> O.to_string nv :: l) s [] in
-      string_of_list (fun x -> x) l
+      let l = S.fold (fun nv l -> O.to_string nv :: l) s [] in
+      string_of_list (fun x -> x) (List.rev l)
 
     let map f t =
-      of_list (List.map f (elements t))
+      S.fold (fun e set -> S.add (f e) set) t S.empty
 
     let find fn s =
       choose (filter fn s)
@@ -85,9 +102,11 @@ module Map = struct
 
     include M
 
-    let values map = List.map snd (bindings map)
+    let values map =
+      List.rev (M.fold (fun _ v acc -> v :: acc) map [])
 
-    let keys map = List.map fst (bindings map)
+    let keys map =
+      List.rev (M.fold (fun k _ acc -> k :: acc) map [])
 
     let union f m1 m2 =
       M.fold (fun k v m ->
@@ -149,6 +168,9 @@ end
 module StringSet = Set.Make(OString)
 module StringMap = Map.Make(OString)
 
+module StringSetSet = Set.Make(StringSet)
+module StringSetMap = Map.Make(StringSet)
+
 module OP = struct
 
   let (|>) f g x = g (f x)
@@ -184,18 +206,32 @@ let strip str =
   String.sub str p (!l - p + 1)
 
 let starts_with ~prefix s =
-  String.length s >= String.length prefix
-  && String.sub s 0 (String.length prefix) = prefix
+  let x = String.length prefix in
+  let n = String.length s in
+  n >= x
+  && String.sub s 0 x = prefix
 
 let ends_with ~suffix s =
-  String.length s >= String.length suffix
-  && String.sub s (String.length s - String.length suffix) (String.length suffix) = suffix
+  let x = String.length suffix in
+  let n = String.length s in
+  n >= x
+  && String.sub s (n - x) x = suffix
 
 let remove_prefix ~prefix s =
   if starts_with ~prefix s then
-    Some (String.sub s (String.length prefix) (String.length s - String.length prefix))
+    let x = String.length prefix in
+    let n = String.length s in
+    String.sub s x (n - x)
   else
-    None
+    s
+
+let remove_suffix ~suffix s =
+  if ends_with ~suffix s then
+    let x = String.length suffix in
+    let n = String.length s in
+    String.sub s 0 (n - x)
+  else
+    s
 
 let cut_at_aux fn s sep =
   try
@@ -215,7 +251,7 @@ let contains s c =
   with Not_found -> false
 
 let split s c =
-  Pcre.split ~rex:(Re_perl.compile (Re.char c)) s
+  Re_pcre.split ~rex:(Re_perl.compile (Re.char c)) s
 
 (* Remove from a ':' separated list of string the one with the given prefix *)
 let reset_env_value ~prefix v =
@@ -250,7 +286,7 @@ let insert comp x l =
 
 let env = lazy (
   let e = Unix.environment () in
-  List.map (fun s ->
+  List.rev_map (fun s ->
     match cut_at s '=' with
     | None   -> s, ""
     | Some p -> p
@@ -293,3 +329,53 @@ let pretty_backtrace () =
   | b  ->
     let b = String.concat "\n  " (split b '\n') in
     Printf.sprintf "Backtrace:\n  %s\n" b
+
+
+let default_columns = 100
+
+let with_process_in cmd f =
+  let ic = Unix.open_process_in cmd in
+  try
+    let r = f ic in
+    ignore (Unix.close_process_in ic) ; r
+  with exn ->
+    ignore (Unix.close_process_in ic) ; raise exn
+
+let get_terminal_columns () =
+  try           (* terminfo *)
+    with_process_in "tput cols"
+      (fun ic -> int_of_string (input_line ic))
+  with _ -> try (* GNU stty *)
+    with_process_in "stty size"
+      (fun ic ->
+        match split (input_line ic) ' ' with
+        | [_ ; v] -> int_of_string v
+        | _ -> failwith "stty")
+  with _ -> try (* shell envvar *)
+    int_of_string (getenv "COLUMNS")
+  with _ ->
+    default_columns
+
+let terminal_columns =
+  let v = Lazy.lazy_from_fun get_terminal_columns in
+  fun () ->
+    if Unix.isatty Unix.stdout
+    then Lazy.force v
+    else max_int
+
+let uname_s () =
+  try
+    with_process_in "uname -s"
+      (fun ic -> Some (strip (input_line ic)))
+  with _ ->
+    None
+
+let guess_shell_compat () =
+  try
+    match Filename.basename (getenv "SHELL") with
+    | "tcsh"
+    | "csh" -> `csh
+    | "zsh" -> `zsh
+    | _     -> `sh
+  with _ ->
+    `sh

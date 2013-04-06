@@ -17,76 +17,150 @@
 
 open OpamTypes
 
-(** Initialize the client a consistent state.
-    [init repo alias oversion cores] means:
-    - [repo] is the initial repository description,
-    - [compiler] is the version of the compiler.
-    - [cores] is the number of cores *)
-val init : repository -> compiler -> int -> unit
+(** OPAM API. *)
+module API: sig
 
-(** Display all available packages that matches any of the regexps. *)
-val list : print_short:bool -> installed_only:bool -> ?name_only:bool -> ?case_sensitive:bool
-  -> string list  -> unit
+  (** Initialize the client a consistent state. *)
+  val init:
+    repository -> compiler -> jobs:int ->
+    shell -> filename -> [`ask|`yes|`no] ->
+    unit
 
-(** Display a general summary of a collection of packages. *)
-val info : fields:string list -> string list -> unit
+  (** Display all available packages that matches any of the
+     regexps. *)
+  val list:
+    print_short:bool ->
+    installed_only:bool ->
+    installed_roots:bool ->
+    ?name_only:bool ->
+    ?case_sensitive:bool ->
+    string list ->
+    unit
 
-(** Depending on request, return options or directories where the
-    package is installed. *)
-val config : config -> unit
+  (** Display a general summary of a collection of packages. *)
+  val info: fields:string list -> string list -> unit
 
-(** Install the given set of packages. Take the global file lock. *)
-val install : name_set -> unit
+  (** Install the given set of packages. *)
+  val install: name_set -> unit
 
-(** Reinstall the given set of packages. Take the global file lock. *)
-val reinstall : OpamPackage.Name.Set.t -> unit
+  (** Reinstall the given set of packages. *)
+  val reinstall: name_set -> unit
 
-(** Refresh the available packages. Take the global file lock. *)
-val update : repository_name list -> unit
+  (** Refresh the available packages. *)
+  val update: repository_name list -> unit
 
-(** Find a consistent state where most of the installed packages are
-    upgraded to their latest version.
-    If no package packages are specified then try to upgrade everything.
-    Take the global file lock. *)
-val upgrade : OpamPackage.Name.Set.t -> unit
+  (** Find a consistent state where most of the installed packages are
+      upgraded to their latest version. [None] means all the installed
+      packages. *)
+  val upgrade: name_set option -> unit
 
-(** Upload a package to a remote repository. Take the global file lock. *)
-val upload : upload -> repository_name -> unit
+  (** Upload a package to a remote repository. *)
+  val upload: upload -> repository_name -> unit
 
-(** Remove the given set of packages. Take the global file lock. *)
-val remove : OpamPackage.Name.Set.t -> unit
+  (** Remove the given set of packages. *)
+  val remove: autoremove:bool -> name_set -> unit
 
-(** Manage remote repositories. Take the global file lock. *)
-val remote : remote -> unit
+  (** Config API. *)
+  module CONFIG: sig
 
-(** Install the given compiler. Take the global file lock. *)
-val switch_install: bool -> switch -> compiler -> unit
+    (** Display configuration options. *)
+    val config: config -> unit
 
-(** Import the packages from a file. Take the global file lock. If no
-    filename is specified, read stdin. *)
-val switch_import: filename option -> unit
+    (** Display environment. *)
+    val env: csh:bool -> unit
 
-(** Export the packages to a file. Take the global file lock. If no
-    filename is specified, write to stdout. *)
-val switch_export: filename option -> unit
+    (** Global and user setup of OPAM. *)
+    val setup: user_config option -> global_config option -> unit
 
-(** Remove the given compiler. Take the global file lock. *)
-val switch_remove: switch -> unit
+    (** Display global and user informations about OPAM setup. *)
+    val setup_list: shell -> filename -> unit
 
-(** Switch to the given compiler. Take the global file lock. *)
-val switch: bool -> switch -> unit
+    (** Execute a command in a subshell with the right environment variables. *)
+    val exec: string -> unit
 
-(** Reinstall the given compiler. Take the global file lock. *)
-val switch_reinstall: switch -> unit
+    (** Display includes files. *)
+    val includes: is_rec:bool -> name list -> unit
 
-(** List the available compiler descriptions *)
-val switch_list: print_short:bool -> installed_only:bool -> unit
+    (** Display variables and their contents. *)
+    val list: name list -> unit
 
-(** Display the name of the current compiler *)
-val switch_current: unit -> unit
+    (** Display a given variable content. *)
+    val variable: full_variable -> unit
 
-(** Pin a package to a specific version. Take the global file lock. *)
-val pin: force:bool -> pin -> unit
+    (** Substitute files. *)
+    val subst: basename list -> unit
 
-(** List the current pinned packages *)
-val pin_list: unit -> unit
+  end
+
+  (** Repository API *)
+  module REPOSITORY: sig
+
+    (** Display the list of repositories. *)
+    val list: short:bool -> unit
+
+    (** Add a new repository. *)
+    val add: repository_name -> repository_kind -> address -> priority:int option -> unit
+
+    (** Remove a repository. *)
+    val remove: repository_name -> unit
+
+    (** Set-up repository priority. *)
+    val priority: repository_name -> priority:int -> unit
+
+  end
+
+  (** Switch API *)
+  module SWITCH: sig
+
+    (** Switch to the given compiler. Take the global file lock. *)
+    val switch: quiet:bool -> warning:bool -> switch -> unit
+
+    (** Install the given compiler. *)
+    val install: quiet:bool -> warning:bool -> switch -> compiler -> unit
+
+    (** Import the packages from a file. If no filename is specified,
+        read stdin. *)
+    val import: filename option -> unit
+
+    (** Export the packages to a file. If no filename is specified,
+        write to stdout. *)
+    val export: filename option -> unit
+
+    (** Remove the given compiler. *)
+    val remove: switch -> unit
+
+    (** Reinstall the given compiler. *)
+    val reinstall: switch -> unit
+
+    (** List the available compiler descriptions. *)
+    val list: print_short:bool -> installed_only:bool -> unit
+
+    (** Display the name of the current compiler. *)
+    val show: unit -> unit
+
+  end
+
+  (** Pin API *)
+  module PIN: sig
+
+    (** Pin a package to a specific version. *)
+    val pin: force:bool -> pin -> unit
+
+    (** List the current pinned packages. *)
+    val list: unit -> unit
+
+  end
+
+end
+
+(** Call an unsafe function while taking the global lock. *)
+val global_lock: (unit -> unit) -> unit
+
+(** Call an unsafe function while taking the current switch lock. *)
+val switch_lock: (unit -> unit) -> unit
+
+(** Call an unsafe function while checking that no lock is already held. *)
+val read_lock: (unit -> unit) -> unit
+
+(** This version of the API can be used concurrently. *)
+module SafeAPI: (module type of API)

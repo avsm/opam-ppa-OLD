@@ -15,6 +15,9 @@
 
 (** Common types used by other modules *)
 
+(** {2 Exceptions} *)
+exception Lexer_error of string
+
 (** {2 Filenames} *)
 
 (** Basenames *)
@@ -76,6 +79,9 @@ type compiler = OpamCompiler.t
 
 (** Set of compiler names *)
 type compiler_set = OpamCompiler.Set.t
+
+(** Maps of compiler names *)
+type 'a compiler_map = 'a OpamCompiler.Map.t
 
 (** Compiler versions *)
 type compiler_version = OpamCompiler.Version.t
@@ -280,6 +286,7 @@ type user_action =
 
 (** Solver universe *)
 type universe = {
+  u_packages : package_set;
   u_installed: package_set;
   u_available: package_set;
   u_depends  : formula package_map;
@@ -300,16 +307,6 @@ type upload = {
 
 (** Pretty-print *)
 val string_of_upload: upload -> string
-
-(** Remote arguments *)
-type remote =
-  | RList
-  | RAdd of repository_name * repository_kind * dirname * int option
-  | RRm of repository_name
-  | RPriority of repository_name * int
-
-(** Pretty-print or remote args *)
-val string_of_remote: remote -> string
 
 (** Pinned packages options *)
 type pin_option =
@@ -345,20 +342,29 @@ val path_of_pin_option: pin_option -> string
 val kind_of_pin_option: pin_option -> pin_kind
 
 (** Configuration requests *)
-type config_option = {
+type config = {
   conf_is_rec : bool;
   conf_is_byte: bool;
   conf_is_link: bool;
   conf_options: OpamVariable.Section.Full.t list;
 }
 
-type config =
-  | CEnv of bool
-  | CList of name list
-  | CVariable of full_variable
-  | CIncludes of bool * (name list)
-  | CCompil   of config_option
-  | CSubst    of basename list
+
+(** Shell compatibility modes *)
+type shell = [`csh|`zsh|`sh]
+
+(** Global configuration option *)
+type global_config = {
+  complete   : bool;
+  switch_eval: bool;
+}
+
+(** User configuration option *)
+type user_config = {
+  shell      : shell;
+  ocamlinit  : bool;
+  dot_profile: filename option;
+}
 
 (** {2 Filtered commands} *)
 
@@ -475,3 +481,6 @@ type env = (string * string) list
 
 (** Environment updates *)
 type env_updates = (string * string * string) list
+
+(** Tags *)
+type tags = OpamMisc.StringSet.t OpamMisc.StringSetMap.t

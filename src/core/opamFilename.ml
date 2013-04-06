@@ -22,10 +22,18 @@ module Dir = struct
   include OpamMisc.Base
 
   let of_string dirname =
-    if not (Filename.is_relative dirname) then
-      dirname
-    else
+    if (String.length dirname > 1 && dirname.[0] = '~') then
+      let home = OpamMisc.getenv "HOME" in
+      match dirname with
+      | "~" -> home
+      | _   ->
+        let prefix = Filename.concat "~" "" in
+        let suffix = OpamMisc.remove_prefix ~prefix dirname in
+        Filename.concat home suffix
+    else if Filename.is_relative dirname then
       OpamSystem.real_path dirname
+    else
+      dirname
 
   let to_string dirname =
     if dirname.[String.length dirname - 1] = Filename.dir_sep.[0] then
@@ -50,37 +58,57 @@ let cwd () =
 let mkdir dirname =
   OpamSystem.mkdir (Dir.to_string dirname)
 
-let list_dirs d =
+let rec_dirs d =
+  let fs = OpamSystem.rec_dirs (Dir.to_string d) in
+  List.rev (List.rev_map Dir.of_string fs)
+
+let sub_dirs d =
   let fs = OpamSystem.directories_with_links (Dir.to_string d) in
-  List.map Dir.of_string fs
+  List.rev (List.rev_map Dir.of_string fs)
 
 let in_dir dirname fn =
   if Sys.file_exists dirname then
     OpamSystem.in_dir dirname fn
   else
-    OpamGlobals.error_and_exit "%s does not exist!" dirname
+    OpamSystem.internal_error "Cannot CD to %s: the directory does not exist!" dirname
 
 let exec dirname ?env ?name cmds =
   let env = match env with
     | None   -> None
-    | Some l -> Some (Array.of_list (List.map (fun (k,v) -> k^"="^v) l)) in
+    | Some l -> Some (Array.of_list (List.rev_map (fun (k,v) -> k^"="^v) l)) in
   in_dir dirname
     (fun () -> OpamSystem.commands ?env ?name cmds)
 
-let move_dir src dst =
+let move_dir ~src ~dst =
   OpamSystem.command [ "mv"; Dir.to_string src; Dir.to_string dst ]
 
-let copy_dir src dst =
+let exists_dir dirname =
+  Sys.file_exists (Dir.to_string dirname)
+
+let copy_dir ~src ~dst =
+  if exists_dir dst then
+    OpamSystem.internal_error "Cannot create %s as the directory already exists." (Dir.to_string dst);
+  OpamSystem.command [ "cp"; "-pPR"; Dir.to_string src; Dir.to_string dst ]
+
+let copy_unique_dir ~src ~dst =
   with_tmp_dir (fun tmp ->
     OpamSystem.command [ "rsync"; "-a"; Filename.concat (Dir.to_string src) "/"; Dir.to_string tmp ];
-    match list_dirs tmp with
+    match sub_dirs tmp with
     | [f] ->
       rmdir dst;
-      move_dir f dst
-    | _ -> OpamGlobals.error_and_exit "Error while copying %s to %s" (Dir.to_string src) (Dir.to_string dst)
+      move_dir ~src:f ~dst
+    | [] ->
+      OpamSystem.internal_error
+        "Error while copying %s to %s: empty directory."
+        (Dir.to_string src) (Dir.to_string dst)
+    | l ->
+      let l = List.map Filename.basename l in
+      OpamSystem.internal_error
+        "Error while copying %s to %s: too many subdirectories (%s)"
+        (Dir.to_string src) (Dir.to_string dst) (String.concat ", " l)
   )
 
-let link_dir src dst =
+let link_dir ~src ~dst =
   rmdir dst;
   let tmp_dst = Filename.concat (Filename.basename src) (Filename.basename dst) in
   let base = Filename.dirname dst in
@@ -99,9 +127,6 @@ let basename_dir dirname =
 
 let dirname_dir dirname =
   Dir.to_string (Filename.dirname (Dir.of_string dirname))
-
-let exists_dir dirname =
-  Sys.file_exists (Dir.to_string dirname)
 
 let (/) d1 s2 =
   let s1 = Dir.to_string d1 in
@@ -177,17 +202,17 @@ let add_extension filename suffix =
 let chop_extension filename =
   of_string (Filename.chop_extension (to_string filename))
 
-let list_files d =
+let rec_files d =
   let fs = OpamSystem.rec_files (Dir.to_string d) in
-  List.map of_string fs
+  List.rev (List.rev_map of_string fs)
 
-let copy src dst =
+let copy ~src ~dst =
   OpamSystem.copy (to_string src) (to_string dst)
 
-let move src dst =
+let move ~src ~dst =
   OpamSystem.command [ "mv"; to_string src; to_string dst ]
 
-let link src dst =
+let link ~src ~dst =
 (*  if Lazy.force OpamGlobals.os = OpamGlobals.Win32 then
     copy src dst
   else *)
@@ -196,7 +221,7 @@ let link src dst =
 let process_in fn src dst =
   let src_s = to_string src in
   let dst = Filename.concat (Dir.to_string dst) (Filename.basename src_s) in
-  fn src (of_string dst)
+  fn ~src ~dst:(of_string dst)
 
 let copy_in = process_in copy
 
@@ -211,14 +236,18 @@ let extract_in filename dirname =
 let starts_with dirname filename =
   OpamMisc.starts_with ~prefix:(Dir.to_string dirname) (to_string filename)
 
-let remove_prefix ~prefix filename =
+let remove_prefix prefix filename =
   let prefix =
     let str = Dir.to_string prefix in
     if str = "" then "" else Filename.concat str "" in
-  let dirname = to_string filename in
-  match OpamMisc.remove_prefix ~prefix dirname with
-  | None   -> OpamGlobals.error_and_exit "%s is not a prefix of %s" prefix dirname
-  | Some s -> s
+  let filename = to_string filename in
+  OpamMisc.remove_prefix ~prefix filename
+
+let remove_suffix suffix filename =
+  let suffix = Base.to_string suffix in
+  let filename = to_string filename in
+  OpamMisc.remove_suffix ~suffix filename
+
 
 let download ~overwrite filename dirname =
   mkdir dirname;
@@ -228,7 +257,8 @@ let download ~overwrite filename dirname =
 let download_iter ~overwrite filenames dirname =
   let rec aux = function
     | []   ->
-      OpamSystem.internal_error "Cannot download %s" (String.concat ", " (List.map to_string filenames))
+      let filenames = List.map to_string filenames in
+      OpamSystem.internal_error "Cannot download %s." (OpamMisc.pretty_list filenames)
     | h::t ->
       try download ~overwrite h dirname
       with _ -> aux t in
@@ -243,14 +273,35 @@ let address_of_string address =
   else raw_dir address
 
 let with_flock file f x =
+  OpamSystem.flock (to_string file);
   try
-    OpamSystem.flock (to_string file);
     let r = f x in
     OpamSystem.funlock (to_string file);
     r
   with e ->
     OpamSystem.funlock (to_string file);
     raise e
+
+let prettify_string s =
+  let aux ~short ~prefix =
+    let prefix = Filename.concat prefix "" in
+    if OpamMisc.starts_with ~prefix s then
+      let suffix = OpamMisc.remove_prefix ~prefix s in
+      Some (Filename.concat short suffix)
+    else
+      None in
+  match aux ~short:"<root>" ~prefix:!OpamGlobals.root_dir with
+  | Some p -> p
+  | None   ->
+    match aux ~short:"~" ~prefix:(OpamMisc.getenv "HOME") with
+    | Some p -> p
+    | None   -> s
+
+let prettify_dir d =
+  prettify_string (Dir.to_string d)
+
+let prettify s =
+  prettify_string (to_string s)
 
 module O = struct
   type tmp = t
@@ -303,7 +354,7 @@ module Attribute = struct
     match OpamMisc.split s ' ' with
     | [base; md5]      -> { base=Base.of_string base; md5; perm=None }
     | [base;md5; perm] -> { base=Base.of_string base; md5; perm=Some (int_of_string perm) }
-    | k                -> OpamGlobals.error_and_exit "Remote_file: %s" (String.concat " " k)
+    | k                -> OpamSystem.internal_error "remote_file: '%s' is not a valid line." (String.concat " " k)
 
   module O = struct
     type tmp = t

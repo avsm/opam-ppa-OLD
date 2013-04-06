@@ -17,9 +17,16 @@ build: [
  [ "this as well" { "%{os}%" = "myOS" } ]
 ]
 
+os: [ !"NO" | ( !"NO" & !"YES") ]
+
 (* List of files to substitute env variables *)
 substs: [ "P1.config" ]
 
 (* Libraries *)
 libraries: [ "p1" ]
 
+(* External dependencies *)
+depexts: [
+  [ ["debian" "amd64"] ["foo" "bar"] ]
+  [ ["osx" ]           ["foobar"]    ]
+]

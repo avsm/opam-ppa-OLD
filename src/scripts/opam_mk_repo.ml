@@ -23,11 +23,24 @@ let () =
 
 let log fmt = OpamGlobals.log "OPAM-MK-REPO" fmt
 
-let all, index, packages, gener_digest, dryrun, recurse =
+let tmp_dirs = [ "tmp"; "log" ]
+
+let () =
+  List.iter (fun dir ->
+    if Sys.file_exists dir then (
+      Printf.eprintf
+        "ERROR: The subdirectory '%s' already exists in the current directory. \n\
+         Please remove or rename it or run %s in a different folder.\n"
+        dir Sys.argv.(0);
+      exit 1;
+    )
+  ) tmp_dirs
+
+let all, index, names, gener_digest, dryrun, recurse =
   let usage = Printf.sprintf "%s [-all] [<package>]*" (Filename.basename Sys.argv.(0)) in
   let all = ref true in
   let index = ref false in
-  let packages = ref [] in
+  let names = ref [] in
   let gener_digest = ref false in
   let dryrun = ref false in
   let recurse = ref false in
@@ -50,9 +63,9 @@ let all, index, packages, gener_digest, dryrun, recurse =
 
     ("-r", Arg.Set recurse, " Recurse among the transitive dependencies");
   ] in
-  let ano p = packages := p :: !packages in
+  let ano p = names := p :: !names in
   Arg.parse specs ano usage;
-  !all, !index, !packages, !gener_digest, !dryrun, !recurse
+  !all, !index, !names, !gener_digest, !dryrun, !recurse
 
 let process () =
   let local_path = OpamFilename.cwd () in
@@ -60,25 +73,25 @@ let process () =
 
   OpamGlobals.root_dir := OpamFilename.Dir.to_string local_path;
 
+  let prefix, packages = OpamRepository.packages local_path in
+
   let mk_packages str =
-    let dir = OpamPath.Repository.packages_dir local_path / str in
-    if OpamFilename.exists_dir dir then
-      let nv = OpamPackage.of_string str in
-      OpamPackage.Set.singleton nv
-    else
+    match OpamPackage.of_string_opt str with
+    | Some nv -> OpamPackage.Set.singleton nv
+    | None    ->
       let n = OpamPackage.Name.of_string str in
-      match OpamPackage.Version.Set.elements (OpamRepository.versions local_path n) with
+      match OpamPackage.Version.Set.elements (OpamPackage.versions_of_name packages n) with
       | []       ->
         OpamGlobals.msg "Skipping unknown package %s.\n" str;
         OpamPackage.Set.empty
       | versions ->
         OpamPackage.Set.of_list (List.map (OpamPackage.create n) versions) in
-  let packages =
+  let new_packages =
     List.fold_left
       (fun accu str -> OpamPackage.Set.union accu (mk_packages str))
-      OpamPackage.Set.empty packages in
+      OpamPackage.Set.empty names in
 
-  if OpamPackage.Set.is_empty packages then (
+  if names <> [] && OpamPackage.Set.is_empty new_packages then (
     OpamGlobals.msg "No package to process.\n";
     exit 0
   );
@@ -94,7 +107,8 @@ let process () =
 
   (* Compute the transitive closure of packages *)
   let get_dependencies nv =
-    let opam_f = OpamPath.Repository.opam local_path nv in
+    let prefix = OpamRepository.find_prefix prefix nv in
+    let opam_f = OpamPath.Repository.opam local_path prefix nv in
     if OpamFilename.exists opam_f then (
       let opam = OpamFile.OPAM.read opam_f in
       let deps = OpamFile.OPAM.depends opam in
@@ -115,14 +129,14 @@ let process () =
       get_transitive_dependencies new_packages in
   let packages =
     if recurse then
-      get_transitive_dependencies packages
+      get_transitive_dependencies new_packages
     else
-      packages in
+      new_packages in
 
   let nv_set_of_remotes remotes =
     let aux r = OpamFilename.create (OpamFilename.cwd ()) (OpamFilename.Attribute.base r) in
     let list = List.map aux (OpamFilename.Attribute.Set.elements remotes) in
-    OpamPackage.Set.of_list (OpamMisc.filter_map OpamPackage.of_filename list) in
+    OpamPackage.Set.of_list (OpamMisc.filter_map (OpamPackage.of_filename ~all:true) list) in
   let new_index = nv_set_of_remotes new_index in
   let missing_archive =
     OpamPackage.Set.filter (fun nv ->
@@ -178,8 +192,7 @@ let process () =
   ) else
     OpamGlobals.msg "OPAM Repository already up-to-date.\n";
 
-  OpamSystem.remove "log";
-  OpamSystem.remove "tmp";
+  List.iter OpamSystem.remove tmp_dirs;
 
   (* Rebuild urls.txt now the archives have been updated *)
   if dryrun then
@@ -201,5 +214,6 @@ let process () =
 
 let () =
   try process ()
-  with e ->
-    Printf.eprintf "%s\n" (Printexc.to_string e)
+  with
+  | OpamGlobals.Exit i -> exit i
+  | e -> Printf.eprintf "%s\n" (Printexc.to_string e)

@@ -23,7 +23,7 @@ let opt_repair = ref false
 let () =
   let usage = Printf.sprintf "Usage: %s" Sys.argv.(0) in
   let specs = [
-    ("--version", Arg.Unit OpamVersion.message, " Display version information");
+    ("--version"  , Arg.Unit OpamVersion.message, " Display version information");
     ("--normalize", Arg.Set opt_normalize         , " Normalize all files in the repository");
     ("--repair"   , Arg.Set opt_repair            , " Try to repair most of warnings");
   ] in
@@ -59,42 +59,44 @@ end
 
 let () =
   let t = OpamFilename.cwd () in
+  let prefix, packages = OpamRepository.packages t in
 
   (** packages *)
   OpamPackage.Set.iter (fun package ->
     OpamGlobals.msg "Processing (package) %s\n" (OpamPackage.to_string package);
 
+    let prefix = OpamRepository.find_prefix prefix package in
+
     (** Descr *)
-    let descr = OpamPath.Repository.descr t package in
+    let descr = OpamPath.Repository.descr t prefix package in
     write OpamFile.Descr.write descr (OpamFile.Descr.read descr);
 
     (** OPAM *)
-    let opam = OpamPath.Repository.opam t package in
+    let opam = OpamPath.Repository.opam t prefix package in
     write OpamFile.OPAM.write opam (Check.opam (OpamFile.OPAM.read opam));
 
     (** URL *)
-    let url = OpamPath.Repository.url t package in
+    let url = OpamPath.Repository.url t prefix package in
     if OpamFilename.exists url then (
       write OpamFile.URL.write url (OpamFile.URL.read url);
     );
 
     (** Dot_install *)
-    let dot_install = OpamPath.Repository.files t package // (OpamPackage.Name.to_string (OpamPackage.name package) ^ ".install") in
-    if OpamFilename.exists dot_install then (
-      write OpamFile.Dot_install.Raw.write dot_install (OpamFile.Dot_install.Raw.read dot_install);
-    );
-  ) (OpamRepository.packages t);
+    let dot_install =
+      OpamPath.Repository.files t prefix package
+      // (OpamPackage.Name.to_string
+          (OpamPackage.name package) ^ ".install") in
+    if OpamFilename.exists dot_install then
+      write OpamFile.Dot_install.write dot_install (OpamFile.Dot_install.read dot_install);
+
+  ) packages;
 
   (** compilers *)
-  OpamCompiler.Set.iter (fun compiler ->
+  OpamCompiler.Map.iter (fun compiler (comp, descr) ->
     OpamGlobals.msg "Processing (compiler) %s\n" (OpamCompiler.to_string compiler);
-
-    (** Comp *)
-    let comp = OpamPath.Repository.compiler t compiler in
     write OpamFile.Comp.write comp (OpamFile.Comp.read comp);
-
-    (** Comp_descr *)
-    let comp_descr = OpamPath.Repository.compiler_descr t compiler in
-    write OpamFile.Comp_descr.write comp_descr (OpamFile.Comp_descr.read comp_descr);
+    match descr with
+    | None   -> ()
+    | Some d -> write OpamFile.Comp_descr.write d (OpamFile.Comp_descr.read d);
 
   ) (OpamRepository.compilers t);

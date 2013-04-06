@@ -20,19 +20,19 @@ let log fmt = OpamGlobals.log "RSYNC" fmt
 
 let rsync ?(delete=true) src dst =
   log "rsync: delete:%b src:%s dst:%s" delete src dst;
-  if src <> dst then (
-    OpamSystem.mkdir src;
-    OpamSystem.mkdir dst;
-    let delete = if delete then ["--delete"] else [] in
-    try
+  if Sys.file_exists src then (
+    if src <> dst then (
+      OpamSystem.mkdir src;
+      OpamSystem.mkdir dst;
+      let delete = if delete then ["--delete"] else [] in
       let lines = OpamSystem.read_command_output (["rsync" ; "-arv"; "--exclude"; ".git/*"; "--exclude"; "_darcs/*"; src; dst] @ delete) in
       match OpamMisc.rsync_trim lines with
       | []    -> Up_to_date []
       | lines -> Result lines
-    with _ ->
-      Not_available
+    ) else
+      Up_to_date []
   ) else
-    Up_to_date []
+    Not_available
 
 let rsync_dirs ?delete src dst =
   let src_s = Filename.concat (OpamFilename.Dir.to_string src) "" in
@@ -44,7 +44,7 @@ let rsync_dirs ?delete src dst =
 
 let rsync_file src dst =
   log "rsync_file src=%s dst=%s" (OpamFilename.to_string src) (OpamFilename.to_string dst);
-  try
+  if OpamFilename.exists src then (
     let lines = OpamSystem.read_command_output [
       "rsync"; "-av"; OpamFilename.to_string src; OpamFilename.to_string dst;
     ] in
@@ -55,7 +55,7 @@ let rsync_file src dst =
         OpamSystem.internal_error
           "unknown rsync output: {%s}"
           (String.concat ", " l)
-  with _ ->
+  ) else
     Not_available
 
 module B = struct
@@ -83,8 +83,8 @@ module B = struct
         tmp_dir / basename
       | Some d -> d in
     OpamGlobals.msg "Synchronizing %s with %s.\n"
-      (OpamFilename.Dir.to_string local_dir)
-      (OpamFilename.Dir.to_string remote_dir);
+      (OpamFilename.prettify_dir local_dir)
+      (OpamFilename.prettify_dir remote_dir);
     match rsync_dirs ~delete:true remote_dir local_dir with
     | Up_to_date _  -> Up_to_date local_dir
     | Result _      -> Result local_dir
@@ -99,17 +99,17 @@ module B = struct
   let update ~address =
     let local_repo = OpamRepository.local_repo () in
     OpamGlobals.msg "Synchronizing %s with %s.\n"
-      (OpamFilename.Dir.to_string (OpamPath.Repository.root local_repo))
-      (OpamFilename.Dir.to_string address);
+      (OpamFilename.prettify_dir (OpamPath.Repository.root local_repo))
+      (OpamFilename.prettify_dir address);
     let sync_dir fn =
       match rsync_dirs ~delete:true (fn address) (fn local_repo) with
       | Not_available
       | Up_to_date _ -> OpamFilename.Set.empty
       | Result lines ->
-          let files = List.map OpamFilename.of_string lines in
+          let files = List.rev_map OpamFilename.of_string lines in
           OpamFilename.Set.of_list files in
     let archives =
-      let available_packages = OpamRepository.packages local_repo in
+      let _, packages = OpamRepository.packages local_repo in
       let updates = OpamPackage.Set.filter (fun nv ->
         let archive = OpamPath.Repository.archive local_repo nv in
         if not (OpamFilename.exists archive) then
@@ -120,8 +120,8 @@ module B = struct
             false
         | Up_to_date _  -> false
         | Result _      -> true
-      ) available_packages in
-      List.map (OpamPath.Repository.archive local_repo) (OpamPackage.Set.elements updates) in
+      ) packages in
+      List.rev_map (OpamPath.Repository.archive local_repo) (OpamPackage.Set.elements updates) in
     let (++) = OpamFilename.Set.union in
     let updates = OpamFilename.Set.of_list archives
     ++ sync_dir OpamPath.Repository.packages_dir
@@ -142,7 +142,7 @@ module B = struct
             (OpamFilename.Dir.to_string address)
       | Up_to_date _ -> OpamFilename.Set.empty
       | Result _     ->
-          let files = OpamFilename.list_files local_dir in
+          let files = OpamFilename.rec_files local_dir in
           OpamFilename.Set.of_list files
     else
       OpamFilename.Set.empty
@@ -151,4 +151,3 @@ end
 
 let register () =
   OpamRepository.register_backend `local (module B: OpamRepository.BACKEND)
-

@@ -21,19 +21,9 @@ open OpamState.Types
 let full_sections l =
   String.concat " " (List.map OpamVariable.Section.Full.to_string l)
 
-let string_of_config_option t =
+let string_of_config t =
   Printf.sprintf "rec=%b bytecode=%b link=%b options=%s"
     t.conf_is_rec t.conf_is_byte t.conf_is_link (full_sections t.conf_options)
-
-let string_of_config = function
-  | CEnv csh    -> Printf.sprintf "env(csh=%b)" csh
-  | CList ns    -> Printf.sprintf "list-vars %s" (String.concat "," (List.map OpamPackage.Name.to_string ns))
-  | CVariable v -> Printf.sprintf "var(%s)" (OpamVariable.Full.to_string v)
-  | CCompil c   -> string_of_config_option c
-  | CSubst l    -> String.concat "," (List.map OpamFilename.Base.to_string l)
-  | CIncludes (b,l) ->
-      Printf.sprintf "include(%b,%s)"
-        b (String.concat "," (List.map OpamPackage.Name.to_string l))
 
 let need_globals ns =
   ns = []
@@ -69,7 +59,9 @@ let implicits t ns =
     ) global_implicits [ "installed"; "enable" ]
 
 (* List all the available variables *)
-let config_list t ns =
+let list ns =
+  log "config-list";
+  let t = OpamState.load_state "config-list" in
   let globals =
     if need_globals ns then
       [OpamPackage.Name.default, OpamState.dot_config t OpamPackage.Name.default]
@@ -114,9 +106,11 @@ let get_transitive_dependencies t ?(depopts = false) names =
   let universe = OpamState.universe t Depends in
   (* Compute the transitive closure of dependencies *)
   let packages = OpamPackage.Set.of_list (List.map (OpamState.find_installed_package_by_name t) names) in
-  OpamSolver.backward_dependencies ~depopts universe packages
+  OpamSolver.dependencies ~depopts universe packages
 
-let config_includes t is_rec names =
+let includes ~is_rec names =
+  log "config-includes";
+  let t = OpamState.load_state "config-includes" in
   let deps =
     if is_rec then
       List.map OpamPackage.name (get_transitive_dependencies t ~depopts:true ~installed:true names)
@@ -129,7 +123,9 @@ let config_includes t is_rec names =
     ) [] (List.rev deps) in
   OpamGlobals.msg "%s\n" (String.concat " " includes)
 
-let config_compil t c =
+let config c =
+  log "config-options";
+  let t = OpamState.load_state "config-options" in
   let comp = OpamState.compiler t t.compiler in
   let names =
     OpamMisc.filter_map
@@ -250,19 +246,45 @@ let print_csh_env env =
     OpamGlobals.msg "setenv %s %S;\n" k v;
   ) env
 
-let config request =
-  log "config %s" (string_of_config request);
-  let t = OpamState.load_state () in
-  match request with
-  | CEnv csh                  ->
-    let env = OpamState.get_opam_env t in
-    if csh
-    then print_csh_env env
-    else print_env env
-  | CList ns                  -> config_list t ns
-  | CSubst fs                 -> List.iter (OpamState.substitute_file t) fs
-  | CIncludes (is_rec, names) -> config_includes t is_rec names
-  | CCompil c                 -> config_compil t c
-  | CVariable v               ->
-    let contents = OpamState.contents_of_variable t v in
-    OpamGlobals.msg "%s\n" (OpamVariable.string_of_variable_contents contents)
+let env ~csh =
+  log "config-env";
+  let t = OpamState.load_env_state "config-env" in
+  let env = OpamState.get_opam_env t in
+  if csh then
+    print_csh_env env
+  else
+    print_env env
+
+let subst fs =
+  log "config-substitute";
+  let t = OpamState.load_state "config-substitute" in
+  List.iter (OpamState.substitute_file t) fs
+
+let variable v =
+  log "config-variable";
+  let t = OpamState.load_state "config-variable" in
+  let contents = OpamState.contents_of_variable t v in
+  OpamGlobals.msg "%s\n" (OpamVariable.string_of_variable_contents contents)
+
+let setup user global =
+  log "config-setup";
+  let t = OpamState.load_state "config-setup" in
+  OpamState.update_setup t user global
+
+let setup_list shell dot_profile =
+  log "config-setup-list";
+  let t = OpamState.load_state "config-setup-list" in
+  OpamState.display_setup t shell dot_profile
+
+let exec command =
+  log "config-exex command=%s" command;
+  let t = OpamState.load_state "config-exec" in
+  let cmd, args =
+    match OpamMisc.split command ' ' with
+    | []        -> OpamSystem.internal_error "Empty command"
+    | h::_ as l -> h, Array.of_list l in
+  let env =
+    let env = OpamState.get_full_env t in
+    let env = List.rev_map (fun (k,v) -> k^"="^v) env in
+    Array.of_list env in
+  Unix.execvpe cmd args env

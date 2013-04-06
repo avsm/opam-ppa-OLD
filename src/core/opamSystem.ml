@@ -16,8 +16,13 @@
 exception Process_error of OpamProcess.result
 exception Internal_error of string
 
+let log fmt = OpamGlobals.log "SYSTEM" fmt
+
 let internal_error fmt =
-  Printf.ksprintf (fun str -> raise (Internal_error str)) fmt
+  Printf.ksprintf (fun str ->
+    log "error: %s" str;
+    raise (Internal_error str)
+  ) fmt
 
 let process_error r =
   raise (Process_error r)
@@ -29,8 +34,6 @@ module Sys2 = struct
   let is_directory file =
     (lstat file).st_kind = S_DIR
 end
-
-let log fmt = OpamGlobals.log "SYSTEM" fmt
 
 let (/) = Filename.concat
 
@@ -57,7 +60,6 @@ let mkdir dir =
     end in
   aux dir
 
-
 let temp_file ?dir prefix =
   let temp_dir = match dir with
     | None   -> !OpamGlobals.root_dir / "log"
@@ -66,14 +68,32 @@ let temp_file ?dir prefix =
   temp_dir / Printf.sprintf "%s-%06x" prefix (Random.int 0xFFFFFF)
 
 let remove_file file =
-  try Unix.unlink file
-  with Unix.Unix_error _ -> ()
+  if Sys.file_exists file
+  || (try let _ = Unix.lstat file in true with _ -> false)
+  then (
+    try Unix.unlink file
+    with e ->
+      internal_error "Cannot remove %s (%s)." file (Printexc.to_string e)
+  )
+
+let string_of_channel ic =
+  let n = 32768 in
+  let s = String.create n in
+  let b = Buffer.create 1024 in
+  let rec iter ic b s =
+    let nread =
+      try input ic s 0 n
+      with End_of_file -> 0 in
+    if nread > 0 then (
+      Buffer.add_substring b s 0 nread;
+      iter ic b s
+    ) in
+  iter ic b s;
+  Buffer.contents b
 
 let read file =
   let ic = open_in_bin file in
-  let n = in_channel_length ic in
-  let s = String.create n in
-  really_input ic s 0 n;
+  let s = string_of_channel ic in
   close_in ic;
   s
 
@@ -108,7 +128,8 @@ let list kind dir =
       let d = Sys.readdir (Sys.getcwd ()) in
       let d = Array.to_list d in
       let l = List.filter kind d in
-      List.sort compare (List.map (Filename.concat dir) l))
+      List.sort compare (List.rev_map (Filename.concat dir) l)
+    )
   else
     []
 
@@ -131,12 +152,19 @@ let rec_files dir =
     List.fold_left aux (f @ accu) d in
   aux [] dir
 
+let rec_dirs dir =
+  let rec aux accu dir =
+    let d = directories_with_links dir in
+    List.fold_left aux (d @ accu) d in
+  aux [] dir
+
 (* WARNING it fails if [dir] is not a [S_DIR] or simlinks to a directory *)
 let rec remove_dir dir =
   if Sys.file_exists dir then begin
     List.iter remove_file (files_all_not_dir dir);
     List.iter remove_dir (directories_strict dir);
-    Unix.rmdir dir;
+    try Unix.rmdir dir
+    with e -> internal_error "Cannot remove %s (%s)." dir (Printexc.to_string e)
   end
 
 let with_tmp_dir fn =
@@ -192,14 +220,24 @@ let default_env =
 let reset_env = lazy (
   let env = OpamMisc.env () in
   let env =
-    List.map (fun (k,v as c) ->
+    List.rev_map (fun (k,v as c) ->
       match k with
       | "PATH" -> k, String.concat ":" (OpamMisc.reset_env_value ~prefix:!OpamGlobals.root_dir v)
       | _      -> c
     ) env in
-  let env = List.map (fun (k,v) -> k^"="^v) env in
+  let env = List.rev_map (fun (k,v) -> k^"="^v) env in
   Array.of_list env
 )
+
+let command_exists ?(env=default_env) name =
+  let open OpamGlobals in
+  let cmd, args = match OpamGlobals.os () with
+    | NetBSD
+    | DragonFly -> "sh", ["-c"; Printf.sprintf "type %s" name]
+    | _         -> "which", [name] in
+  let r = OpamProcess.run ~env ~name:(temp_file "which") ~verbose:false cmd args in
+  OpamProcess.clean_files r;
+  OpamProcess.is_success r
 
 let run_process ?verbose ?(env=default_env) ?name = function
   | []           -> invalid_arg "run_process"
@@ -217,20 +255,18 @@ let run_process ?verbose ?(env=default_env) ?name = function
     if None <> try Some (String.index cmd ' ') with Not_found -> None then
       OpamGlobals.warning "Command %S contains 1 space" cmd;
 
-    (* Display a user-friendly message if the command does not exists *)
-    let cmd_exists =
-      OpamProcess.run ~env ~name:(temp_file "which") ~verbose:false "which" [cmd] in
-    OpamProcess.clean_files cmd_exists;
+    if command_exists ~env cmd then (
 
-    if OpamProcess.is_success cmd_exists then (
       let verbose = match verbose with
         | None   -> !OpamGlobals.debug || !OpamGlobals.verbose
         | Some b -> b in
+
       let r = OpamProcess.run ~env ~name ~verbose cmd args in
-      if not !OpamGlobals.debug then
+      if OpamProcess.is_success r && not !OpamGlobals.debug then
         OpamProcess.clean_files r;
       r
     ) else
+      (* Display a user-friendly message if the command does not exists *)
       internal_error "%S: command not found." cmd
 
 let command ?verbose ?env ?name cmd =
@@ -247,12 +283,6 @@ let read_command_output ?verbose ?env cmd =
     r.OpamProcess.r_stdout
   else
     process_error r
-
-let () =
-  OpamGlobals.uname_s := function () ->
-    match read_command_output ~verbose:false [ "uname"; "-s"] with
-    | h::_ -> OpamMisc.strip h
-    | []   -> failwith "uname -s"
 
 let copy src dst =
   if Sys.is_directory src then
@@ -287,7 +317,7 @@ module Tar = struct
   let is_archive f =
     List.exists
       (fun suff -> Filename.check_suffix f suff)
-      (List.concat (List.map fst extensions))
+      (List.concat (List.rev_map fst extensions))
 
   let extract_function file =
     let command c dir =
@@ -325,7 +355,7 @@ let extract file dst =
         | [x] ->
             mkdir (Filename.dirname dst);
             command [ "mv"; x; dst]
-        | _   -> internal_error "The archive contains mutliple root directories."
+        | _   -> internal_error "The archive contains multiple root directories."
   )
 
 let extract_in file dst =
@@ -336,10 +366,16 @@ let extract_in file dst =
   | Some f -> f dst
 
 let link src dst =
-  mkdir (Filename.dirname dst);
-  if Sys.file_exists dst then
-    remove_file dst;
-  Unix.link src dst
+  if Sys.file_exists src then (
+    mkdir (Filename.dirname dst);
+    if Sys.file_exists dst then
+      remove_file dst;
+    try Unix.link src dst
+    with Unix.Unix_error (Unix.EXDEV, _, _) ->
+      (* Fall back to copy if hard links are not supported *)
+      copy src dst
+  ) else
+    internal_error "link: %s does not exist." src
 
 let flock file =
   let l = ref 0 in
@@ -389,7 +425,10 @@ let funlock file =
 let ocaml_version = lazy (
   try
     match read_command_output ~verbose:false [ "ocamlc" ; "-version" ] with
-    | h::_ -> Some (OpamMisc.strip h)
+    | h::_ ->
+      let version = OpamMisc.strip h in
+      log "ocamlc version: %s" version;
+      Some version
     | []   -> internal_error "Cannot find ocamlc."
   with _ ->
     None
@@ -398,9 +437,12 @@ let ocaml_version = lazy (
 (* Reset the path to get the system compiler *)
 let system command = lazy (
   try
-    match read_command_output ~verbose:false ~env:(Lazy.force reset_env) command with
+    let env = Lazy.force reset_env in
+    match read_command_output ~verbose:false ~env command with
     | h::_ -> Some (OpamMisc.strip h)
-    | []   -> internal_error "Cannot find %s." (try List.hd command with _ -> "<none>")
+    | []   ->
+      let cmd = try List.hd command with _ -> "<none>" in
+      internal_error "Cannot find %s." cmd
   with _ ->
     None
 )
@@ -409,23 +451,42 @@ let system_ocamlc_where = system [ "ocamlc"; "-where" ]
 
 let system_ocamlc_version = system [ "ocamlc"; "-version" ]
 
-let download_command = lazy (
-  try
-    command ~verbose:false ["which"; "curl"];
-    (fun src -> [ "curl"; "--insecure" ; "-OL"; src ])
-  with Process_error _ ->
-    try
-      command ~verbose:false ["which"; "wget"];
-      (fun src -> [ "wget"; "--content-disposition";
-                  "--no-check-certificate"; src ])
-    with Process_error _ ->
+let download_command =
+  let retry = string_of_int OpamGlobals.download_retry in
+  let wget src =
+    let wget = [
+      "wget";
+      "--content-disposition"; "--no-check-certificate";
+      "-t"; retry;
+      src
+    ] in
+    command wget in
+  let curl src =
+    let curl = [
+      "curl";
+      "--write-out"; "%{http_code}"; "--insecure";
+      "--retry"; retry; "--retry-delay"; "2";
+      "-OL"; src
+    ] in
+    match read_command_output curl with
+    | [] -> internal_error "curl: empty response."
+    | l  ->
+      let code = List.hd (List.rev l) in
+      try if int_of_string code >= 400 then internal_error "curl: error %s" code
+      with _ -> internal_error "curl: %s is not a valid return code" code in
+  lazy (
+    if command_exists "curl" then
+      curl
+    else if command_exists "wget" then
+      wget
+    else
       internal_error "Cannot find curl nor wget."
-)
+  )
 
 let really_download ~overwrite ~src ~dst =
-  let cmd = (Lazy.force download_command) src in
+  let download = (Lazy.force download_command) in
   let aux () =
-    command cmd;
+    download src;
     match list (fun _ -> true) "." with
       ( [] | _::_::_ ) ->
         internal_error "Too many downloaded files."
@@ -459,23 +520,29 @@ let download ~overwrite ~filename:src ~dirname:dst =
   ) else
     really_download ~overwrite ~src ~dst
 
-let patch =
+let patch p =
   let max_trying = 20 in
-  fun p ->
-    if not (Sys.file_exists p) then
-      internal_error "Cannot find %s." p;
-    let patch ~dryrun n =
-      let opts = if dryrun then ["--dry-run"] else [] in
-      let verbose = if dryrun then Some false else None in
-      command ?verbose ("patch" :: ("-p" ^ string_of_int n) :: "-i" :: p :: opts) in
-    let rec aux n =
-      if n = max_trying then
-        internal_error "Application of %s failed: can not determine the correct patch level." p
-      else if None = try Some (patch ~dryrun:true n) with _ -> None then
-        aux (succ n)
-      else
-        patch ~dryrun:false n in
-    aux 0
+  if not (Sys.file_exists p) then
+    internal_error "Cannot find %s." p;
+  let patch ~dryrun n =
+    let opts = if dryrun then
+        let open OpamGlobals in
+        match OpamGlobals.os () with
+        | FreeBSD | OpenBSD | NetBSD | DragonFly -> [ "-t"; "-C" ]
+        | Unix | Linux | Darwin -> [ "--dry-run" ]
+        | Win32 | Cygwin (* this is probably broken *)
+        | Other _               -> [ "--dry-run" ]
+      else [] in
+    let verbose = if dryrun then Some false else None in
+    command ?verbose ("patch" :: ("-p" ^ string_of_int n) :: "-i" :: p :: opts) in
+  let rec aux n =
+    if n = max_trying then
+      internal_error "Application of %s failed: can not determine the correct patch level." p
+    else if None = try Some (patch ~dryrun:true n) with _ -> None then
+      aux (succ n)
+    else
+      patch ~dryrun:false n in
+  aux 0
 
 let () =
   Printexc.register_printer (function

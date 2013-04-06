@@ -40,11 +40,17 @@ let build_doc        = check "BUILDDOC"
 let dryrun           = check "DRYRUN"
 let fake             = check "FAKE"
 let print_stats      = check "STATS"
+let utf8_msgs        = check "UTF8MSGS"
+let autoremove       = check "AUTOREMOVE"
+
+let download_retry =
+  try max 1 (int_of_string (OpamMisc.getenv "OPAMRETRY"))
+  with _ -> 10
 
 let cudf_file = ref (None: string option)
 let aspcud_criteria =
   try OpamMisc.strip (OpamMisc.getenv "OPAMCRITERIA")
-  with _ -> "paranoid"
+  with _ -> "-removed,-notuptodate,-new"
 
 let default_repository_name    = "default"
 let default_repository_address = "http://opam.ocamlpro.com"
@@ -53,11 +59,13 @@ let default_build_command = [ [ "./build.sh" ] ]
 
 let default_package = "conf-ocaml"
 
-let default_switch = "system"
+let system = "system"
 
 let switch : string option ref = ref None
 
 let opam_version = "1"
+
+let external_tags = ref ([] : string list)
 
 let home =
   try OpamMisc.getenv "HOME"
@@ -105,51 +113,59 @@ type os =
   | Linux
   | FreeBSD
   | OpenBSD
+  | NetBSD
+  | DragonFly
   | Cygwin
   | Win32
   | Unix
   | Other of string
 
-let uname_s =
-  ref (fun () -> assert false)
+let osref = ref None
 
-let os = lazy (
-  match Sys.os_type with
-  | "Unix" -> begin
-    match !uname_s () with
-    | "Darwin"  -> Darwin
-    | "Linux"   -> Linux
-    | "FreeBSD" -> FreeBSD
-    | "OpenBSD" -> OpenBSD
-    | _         -> Unix
-  end
-  | "Win32"  -> Win32
-  | "Cygwin" -> Cygwin
-  | s        -> Other s
-)
+let os () =
+  match !osref with
+  | None ->
+    let os = match Sys.os_type with
+      | "Unix" -> begin
+          match OpamMisc.uname_s () with
+          | Some "Darwin"    -> Darwin
+          | Some "Linux"     -> Linux
+          | Some "FreeBSD"   -> FreeBSD
+          | Some "OpenBSD"   -> OpenBSD
+          | Some "NetBSD"    -> NetBSD
+          | Some "DragonFly" -> DragonFly
+          | _                -> Unix
+        end
+      | "Win32"  -> Win32
+      | "Cygwin" -> Cygwin
+      | s        -> Other s in
+    osref := Some os;
+    os
+  | Some os -> os
 
 let string_of_os = function
-  | Darwin  -> "darwin"
-  | Linux   -> "linux"
-  | FreeBSD
-  | OpenBSD -> "bsd"
-  | Cygwin  -> "cygwin"
-  | Win32   -> "win32"
-  | Unix    -> "unix"
-  | Other x -> x
+  | Darwin    -> "darwin"
+  | Linux     -> "linux"
+  | FreeBSD   -> "freebs"
+  | OpenBSD   -> "openbsd"
+  | NetBSD    -> "netbsd"
+  | DragonFly -> "dragonfly"
+  | Cygwin    -> "cygwin"
+  | Win32     -> "win32"
+  | Unix      -> "unix"
+  | Other x   -> x
 
-let os_string =
-  lazy (string_of_os (Lazy.force os))
+let os_string () =
+  string_of_os (os ())
 
-let makecmd = ref (lazy (
-  match Lazy.force os with
+let makecmd = ref (fun () ->
+  match os () with
   | FreeBSD
-  | OpenBSD -> "gmake"
+  | OpenBSD
+  | NetBSD
+  | DragonFly -> "gmake"
   | _ -> "make"
 )
-)
-
-let ulimit_pipe = 65536
 
 let log_limit = 10
 let log_line_limit = 5 * 80

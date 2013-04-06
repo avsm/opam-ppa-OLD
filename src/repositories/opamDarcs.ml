@@ -22,8 +22,8 @@ let log fmt = OpamGlobals.log "Darcs" fmt
 
 let darcs_fetch local_path remote_address =
   OpamGlobals.msg "Synchronizing %s with %s.\n"
-    (OpamFilename.Dir.to_string local_path)
-    (OpamFilename.Dir.to_string remote_address);
+    (OpamFilename.prettify_dir local_path)
+    (OpamFilename.prettify_dir remote_address);
   OpamFilename.in_dir local_path (fun () ->
     (* Fetch the changes and save them to a temporary patch bundle *)
     OpamSystem.command [ "darcs" ; "fetch"; "--all"; "--output=opam_update.bundle"]
@@ -71,7 +71,7 @@ let darcs_diff local_path =
       [ "darcs" ; "changes" ; "--xml-output" ; "--summary" ; "--from-tag=opam_update" ] in
     let files = files_of_xmlchanges xml_changes in
     OpamSystem.command [ "darcs" ; "obliterate" ; "--all" ; "--from-tag=opam_update" ];
-    OpamFilename.Set.of_list (List.map OpamFilename.of_string files)
+    OpamFilename.Set.of_list (List.rev_map OpamFilename.of_string files)
   )
 
 let darcs_init address =
@@ -160,7 +160,7 @@ module B = struct
 
   let upload_dir ~address:_ dirname =
     log "upload_dir";
-    let files = OpamFilename.list_files dirname in
+    let files = OpamFilename.rec_files dirname in
     try
       OpamSystem.commands [
         [ "darcs"; "add"; OpamFilename.Dir.to_string dirname; ];

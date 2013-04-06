@@ -49,14 +49,14 @@ let make_state ~download_index remote_dir =
     let index =
       if download_index then (
         if OpamFilename.exists local_index_file then
-          OpamFilename.move local_index_file local_index_file_save;
+          OpamFilename.move ~src:local_index_file ~dst:local_index_file_save;
         try
           let file = OpamFilename.download ~overwrite:false remote_index_file local_dir in
           OpamFilename.remove local_index_file_save;
           file;
         with e ->
           if OpamFilename.exists local_index_file_save then
-            OpamFilename.move local_index_file_save local_index_file;
+            OpamFilename.move ~src:local_index_file_save ~dst:local_index_file;
           raise e
       ) else
         local_index_file in
@@ -94,6 +94,16 @@ let is_up_to_date state local_file =
   && not (Sys.is_directory (OpamFilename.to_string local_file))
   && List.assoc local_file state.file_digests = OpamFilename.digest local_file
 
+let get_checksum state local_file =
+  if List.mem_assoc local_file state.file_digests
+  && OpamFilename.exists local_file
+  && not (Sys.is_directory (OpamFilename.to_string local_file))
+  then
+    let expected = List.assoc local_file state.file_digests in
+    let actual = OpamFilename.digest local_file in
+    Some (actual, expected)
+  else None
+
 module B = struct
 
   let init ~address =
@@ -122,15 +132,15 @@ module B = struct
   let update ~address =
     let state = make_state ~download_index:true address in
     OpamGlobals.msg "Synchronizing %s with %s.\n"
-      (OpamFilename.Dir.to_string state.local_dir)
-      (OpamFilename.Dir.to_string address);
+      (OpamFilename.prettify_dir state.local_dir)
+      (OpamFilename.prettify_dir address);
     if state.local_dir <> state.remote_dir then begin
       let (--) = OpamFilename.Set.diff in
       let indexes =
         OpamFilename.Set.add
           (index_file state.local_dir)
           (OpamFilename.Set.singleton (index_archive state.local_dir)) in
-      let current = OpamFilename.Set.of_list (OpamFilename.list_files state.local_dir) in
+      let current = OpamFilename.Set.of_list (OpamFilename.rec_files state.local_dir) in
       let to_keep = OpamFilename.Set.filter (is_up_to_date state) state.local_files in
       let config = OpamFilename.Set.singleton (OpamPath.Repository.config state.local_dir) in
       let to_delete = current -- to_keep -- indexes -- config in
@@ -144,14 +154,16 @@ module B = struct
       log "to_delete: %s" (OpamFilename.Set.to_string to_delete);
       log "new_files: %s" (OpamFilename.Set.to_string new_files);
       OpamFilename.Set.iter OpamFilename.remove to_delete;
+      let prefix, packages = OpamRepository.packages local_repo in
       OpamPackage.Set.iter (fun nv ->
-        let opam_f = OpamPath.Repository.opam local_repo nv in
+        let prefix = OpamRepository.find_prefix prefix nv in
+        let opam_f = OpamPath.Repository.opam local_repo prefix nv in
         if not (OpamFilename.exists opam_f) then (
-          OpamFilename.rmdir (OpamPath.Repository.package local_repo nv);
+          OpamFilename.rmdir (OpamPath.Repository.package local_repo prefix nv);
           OpamFilename.rmdir (OpamPath.Repository.tmp_dir local_repo nv);
           OpamFilename.remove (OpamPath.Repository.archive local_repo nv);
         )
-      ) (OpamRepository.packages local_repo);
+      ) packages;
       if OpamFilename.Set.cardinal new_files > 4 then
         init ~address
       else
@@ -176,7 +188,7 @@ module B = struct
         log "dowloading %s" (OpamFilename.to_string remote_file);
         let local_dir = OpamFilename.dirname local_file in
         OpamFilename.mkdir local_dir;
-        OpamGlobals.msg "Downloading %s.\n" (OpamFilename.to_string remote_file);
+        OpamGlobals.msg "Downloading %s.\n" (OpamFilename.prettify remote_file);
         let local_file = OpamFilename.download ~overwrite:true remote_file local_dir in
         if not (OpamFilename.exists local_file) then
           (* This may happen with empty files *)
@@ -188,9 +200,12 @@ module B = struct
           with Not_found ->
             ()
         end;
-        if not !OpamGlobals.no_checksums && not (is_up_to_date state local_file) then
-          OpamSystem.internal_error "Wrong checksum for %s" (OpamFilename.to_string remote_file);
-        Result local_file
+        if not !OpamGlobals.no_checksums && not (is_up_to_date state local_file) then (
+          match get_checksum state local_file with
+          | None -> OpamSystem.internal_error "%s is not up-to-date" (OpamFilename.to_string remote_file)
+          | Some (actual, expected) -> OpamRepository.invalid_checksum remote_file ~actual ~expected
+        ) else
+          Result local_file
       end
     end
 
@@ -204,7 +219,7 @@ module B = struct
     if up_to_date then
       Up_to_date local_file
     else (
-      OpamGlobals.msg "Downloading %s.\n" (OpamFilename.to_string remote_file);
+      OpamGlobals.msg "Downloading %s.\n" (OpamFilename.prettify remote_file);
       try
         let file = OpamFilename.download ~overwrite:true remote_file dest_dir in
         Result file
@@ -225,17 +240,17 @@ end
 
 let make_urls_txt local_repo =
   let local_index_file = OpamFilename.of_string "urls.txt" in
-  let index = OpamFilename.Attribute.Set.of_list (List.map (fun f ->
+  let index = OpamFilename.Attribute.Set.of_list (List.rev_map (fun f ->
     let basename =
-      OpamFilename.Base.of_string (OpamFilename.remove_prefix ~prefix:(OpamFilename.cwd()) f) in
+      OpamFilename.Base.of_string (OpamFilename.remove_prefix (OpamFilename.cwd()) f) in
     let perm =
       let s = Unix.stat (OpamFilename.to_string f) in
       s.Unix.st_perm in
     let digest = OpamFilename.digest f in
     OpamFilename.Attribute.create basename digest perm
-  ) (OpamFilename.list_files (OpamPath.Repository.packages_dir local_repo)
-   @ OpamFilename.list_files (OpamPath.Repository.archives_dir local_repo)
-   @ OpamFilename.list_files (OpamPath.Repository.compilers_dir local_repo)
+  ) (OpamFilename.rec_files (OpamPath.Repository.packages_dir local_repo)
+   @ OpamFilename.rec_files (OpamPath.Repository.archives_dir local_repo)
+   @ OpamFilename.rec_files (OpamPath.Repository.compilers_dir local_repo)
   )) in
   if not (OpamFilename.Attribute.Set.is_empty index) then
     OpamFile.Urls_txt.write local_index_file index;
@@ -246,7 +261,7 @@ let make_index_tar_gz local_repo =
     let dirs = [ "compilers"; "packages" ] in
     match List.filter Sys.file_exists dirs with
     | [] -> ()
-    | d  -> OpamSystem.command ["tar"; "czf"; "index.tar.gz"; String.concat " " d]
+    | d  -> OpamSystem.command ("tar" :: "czf" :: "index.tar.gz" :: d)
   )
 
 let register () =
