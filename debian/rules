@@ -20,11 +20,11 @@ override_dh_auto_configure:
 .PHONY: override_dh_auto_build
 override_dh_auto_build:
 	ocamlbuild $(OCAML_BEST).otarget
-# We need "pandoc" on all architectures to be able to build manpages
-# As of now, "pandoc" is missing on mips, mipsel and s390.
-#	$(MAKE) -C doc OPAM=../opamMain.$(BINEXT) man
+ifneq (,$(findstring opam-docs, $(shell dh_listpackages)))
+	$(MAKE) -C doc OPAM=../opamMain.$(BINEXT) man
 	$(RM) -f doc/dev-manual/dev-manual.pdf
 	$(MAKE) -C doc/dev-manual
+endif
 
 .PHONY: override_dh_auto_test
 override_dh_auto_test:
