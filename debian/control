@@ -21,6 +21,7 @@ Build-Depends:
  texlive-latex-extra,
  texlive-latex-recommended,
  texlive-fonts-recommended,
+ pandoc,
  latex-make,
  curl
 Standards-Version: 3.9.4
