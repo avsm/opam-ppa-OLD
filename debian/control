@@ -23,14 +23,13 @@ Build-Depends:
  texlive-fonts-recommended,
  latex-make,
  curl
-Standards-Version: 3.9.3
+Standards-Version: 3.9.4
 Homepage: http://opam.ocamlpro.com
-Vcs-Git: git://git.debian.org/git/pkg-ocaml-maint/packages/opam.git
-Vcs-Browser: http://git.debian.org/?p=pkg-ocaml-maint/packages/opam.git
+Vcs-Git: git://anonscm.debian.org/pkg-ocaml-maint/packages/opam.git
+Vcs-Browser: http://anonscm.debian.org/gitweb/?p=pkg-ocaml-maint/packages/opam.git
 
 Package: opam
 Architecture: any
-Section: ocaml
 Depends:
  ${ocaml:Depends},
  ${shlibs:Depends},
