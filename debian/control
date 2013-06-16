@@ -16,14 +16,15 @@ Build-Depends:
  libcmdliner-ocaml-dev,
  libextlib-ocaml-dev,
  libocamlgraph-ocaml-dev (>= 1.8),
+ curl
+Build-Depends-Indep:
  texlive-latex-base,
  texlive-lang-french,
  texlive-latex-extra,
  texlive-latex-recommended,
  texlive-fonts-recommended,
  pandoc,
- latex-make,
- curl
+ latex-make
 Standards-Version: 3.9.4
 Homepage: http://opam.ocamlpro.com
 Vcs-Git: git://anonscm.debian.org/pkg-ocaml-maint/packages/opam.git
