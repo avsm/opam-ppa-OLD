@@ -1,3 +1,9 @@
+opam (1.0.0-1ppa1) raring; urgency=low
+
+  * Switch to Ubuntu PPA.
+
+ -- Anil Madhavapeddy <anil@recoil.org>  Sat, 13 Jul 2013 10:45:42 +0100
+
 opam (1.0.0-1) unstable; urgency=low
 
   * Initial upload (Closes: #641986)
