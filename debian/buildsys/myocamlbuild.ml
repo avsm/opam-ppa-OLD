@@ -28,6 +28,7 @@ let packages = [
   "unix";
   "re.glob";
   "re.pcre";
+  "re.str";
   "cmdliner";
   "extlib";
 ]
