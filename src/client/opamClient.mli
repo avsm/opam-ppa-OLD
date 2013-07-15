@@ -1,17 +1,18 @@
-(***********************************************************************)
-(*                                                                     *)
-(*    Copyright 2012 OCamlPro                                          *)
-(*    Copyright 2012 INRIA                                             *)
-(*                                                                     *)
-(*  All rights reserved.  This file is distributed under the terms of  *)
-(*  the GNU Public License version 3.0.                                *)
-(*                                                                     *)
-(*  OPAM is distributed in the hope that it will be useful,            *)
-(*  but WITHOUT ANY WARRANTY; without even the implied warranty of     *)
-(*  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the      *)
-(*  GNU General Public License for more details.                       *)
-(*                                                                     *)
-(***********************************************************************)
+(**************************************************************************)
+(*                                                                        *)
+(*    Copyright 2012-2013 OCamlPro                                        *)
+(*    Copyright 2012 INRIA                                                *)
+(*                                                                        *)
+(*  All rights reserved.This file is distributed under the terms of the   *)
+(*  GNU Lesser General Public License version 3.0 with linking            *)
+(*  exception.                                                            *)
+(*                                                                        *)
+(*  OPAM is distributed in the hope that it will be useful, but WITHOUT   *)
+(*  ANY WARRANTY; without even the implied warranty of MERCHANTABILITY    *)
+(*  or FITNESS FOR A PARTICULAR PURPOSE.See the GNU General Public        *)
+(*  License for more details.                                             *)
+(*                                                                        *)
+(**************************************************************************)
 
 (** Client entry-point. *)
 
@@ -27,13 +28,12 @@ module API: sig
     unit
 
   (** Display all available packages that matches any of the
-     regexps. *)
+      regexps. *)
   val list:
     print_short:bool ->
-    installed_only:bool ->
-    installed_roots:bool ->
-    ?name_only:bool ->
-    ?case_sensitive:bool ->
+    filter:[`all|`installed|`roots|`installable] ->
+    exact_name:bool ->
+    case_sensitive:bool ->
     string list ->
     unit
 
@@ -54,9 +54,6 @@ module API: sig
       packages. *)
   val upgrade: name_set option -> unit
 
-  (** Upload a package to a remote repository. *)
-  val upload: upload -> repository_name -> unit
-
   (** Remove the given set of packages. *)
   val remove: autoremove:bool -> name_set -> unit
 
@@ -67,7 +64,7 @@ module API: sig
     val config: config -> unit
 
     (** Display environment. *)
-    val env: csh:bool -> unit
+    val env: csh:bool -> sexp:bool -> fish:bool -> unit
 
     (** Global and user setup of OPAM. *)
     val setup: user_config option -> global_config option -> unit
@@ -116,7 +113,7 @@ module API: sig
     val switch: quiet:bool -> warning:bool -> switch -> unit
 
     (** Install the given compiler. *)
-    val install: quiet:bool -> warning:bool -> switch -> compiler -> unit
+    val install: quiet:bool -> warning:bool -> update_config:bool -> switch -> compiler -> unit
 
     (** Import the packages from a file. If no filename is specified,
         read stdin. *)
@@ -133,7 +130,7 @@ module API: sig
     val reinstall: switch -> unit
 
     (** List the available compiler descriptions. *)
-    val list: print_short:bool -> installed_only:bool -> unit
+    val list: print_short:bool -> installed:bool -> unit
 
     (** Display the name of the current compiler. *)
     val show: unit -> unit

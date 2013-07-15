@@ -1,17 +1,18 @@
-(***********************************************************************)
-(*                                                                     *)
-(*    Copyright 2012-2013 OCamlPro                                     *)
-(*    Copyright 2012 INRIA                                             *)
-(*                                                                     *)
-(*  All rights reserved.  This file is distributed under the terms of  *)
-(*  the GNU Public License version 3.0.                                *)
-(*                                                                     *)
-(*  OPAM is distributed in the hope that it will be useful,            *)
-(*  but WITHOUT ANY WARRANTY; without even the implied warranty of     *)
-(*  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the      *)
-(*  GNU General Public License for more details.                       *)
-(*                                                                     *)
-(***********************************************************************)
+(**************************************************************************)
+(*                                                                        *)
+(*    Copyright 2012-2013 OCamlPro                                        *)
+(*    Copyright 2012 INRIA                                                *)
+(*                                                                        *)
+(*  All rights reserved.This file is distributed under the terms of the   *)
+(*  GNU Lesser General Public License version 3.0 with linking            *)
+(*  exception.                                                            *)
+(*                                                                        *)
+(*  OPAM is distributed in the hope that it will be useful, but WITHOUT   *)
+(*  ANY WARRANTY; without even the implied warranty of MERCHANTABILITY    *)
+(*  or FITNESS FOR A PARTICULAR PURPOSE.See the GNU General Public        *)
+(*  License for more details.                                             *)
+(*                                                                        *)
+(**************************************************************************)
 
 open OpamTypes
 open OpamState.Types
@@ -41,7 +42,7 @@ let pin ~force action =
       | Version _ -> ()
       | _         ->
         if not force && OpamState.mem_installed_package_by_name t name then
-          OpamGlobals.error_and_exit "You must uninstall the package before unpinning it (or use --force).";
+          OpamGlobals.error_and_exit "You must remove the package before unpinning it (or use --force).";
     end;
     update_config (OpamPackage.Name.Map.remove name pins);
   | _     ->
@@ -71,10 +72,10 @@ let pin ~force action =
               (OpamPackage.Name.to_string name)
               (OpamPackage.Version.to_string (OpamPackage.version nv))
               (OpamPackage.Version.to_string version);
-      | Git _ | Darcs _ | Local _ ->
+      | Git _ | Darcs _ | Local _ | Hg _ ->
         if not force && OpamState.mem_installed_package_by_name t name then
           OpamGlobals.error_and_exit
-            "Cannot pin %s to a dev version as it is already installed. You must uninstall it first (or use --force)."
+            "Cannot pin %s to a dev version as it is already installed. You must remove it first (or use --force)."
             (OpamPackage.Name.to_string name);
     end;
 

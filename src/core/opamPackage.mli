@@ -1,17 +1,18 @@
-(***********************************************************************)
-(*                                                                     *)
-(*    Copyright 2012 OCamlPro                                          *)
-(*    Copyright 2012 INRIA                                             *)
-(*                                                                     *)
-(*  All rights reserved.  This file is distributed under the terms of  *)
-(*  the GNU Public License version 3.0.                                *)
-(*                                                                     *)
-(*  OPAM is distributed in the hope that it will be useful,            *)
-(*  but WITHOUT ANY WARRANTY; without even the implied warranty of     *)
-(*  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the      *)
-(*  GNU General Public License for more details.                       *)
-(*                                                                     *)
-(***********************************************************************)
+(**************************************************************************)
+(*                                                                        *)
+(*    Copyright 2012-2013 OCamlPro                                        *)
+(*    Copyright 2012 INRIA                                                *)
+(*                                                                        *)
+(*  All rights reserved.This file is distributed under the terms of the   *)
+(*  GNU Lesser General Public License version 3.0 with linking            *)
+(*  exception.                                                            *)
+(*                                                                        *)
+(*  OPAM is distributed in the hope that it will be useful, but WITHOUT   *)
+(*  ANY WARRANTY; without even the implied warranty of MERCHANTABILITY    *)
+(*  or FITNESS FOR A PARTICULAR PURPOSE.See the GNU General Public        *)
+(*  License for more details.                                             *)
+(*                                                                        *)
+(**************************************************************************)
 
 (** {2 Package name and versions} *)
 
@@ -88,11 +89,11 @@ val list: OpamFilename.Dir.t -> Set.t
 (** {2 Errors} *)
 
 (** Unknown package: either the name is unknown, or the version does
-   not exist. *)
+    not exist. *)
 val unknown: Name.t -> Version.t option -> 'a
 
 (** Unavailable package: the package exists in the database, but it is
-   not available due to compiler/OS constraints. *)
+    not available due to compiler/OS constraints. *)
 val unavailable: Name.t -> Version.t option -> 'a
 
 (** Unavailable because the package is pinned. *)

@@ -1,17 +1,18 @@
-(***********************************************************************)
-(*                                                                     *)
-(*    Copyright 2012 OCamlPro                                          *)
-(*    Copyright 2012 INRIA                                             *)
-(*                                                                     *)
-(*  All rights reserved.  This file is distributed under the terms of  *)
-(*  the GNU Public License version 3.0.                                *)
-(*                                                                     *)
-(*  OPAM is distributed in the hope that it will be useful,            *)
-(*  but WITHOUT ANY WARRANTY; without even the implied warranty of     *)
-(*  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the      *)
-(*  GNU General Public License for more details.                       *)
-(*                                                                     *)
-(***********************************************************************)
+(**************************************************************************)
+(*                                                                        *)
+(*    Copyright 2012-2013 OCamlPro                                        *)
+(*    Copyright 2012 INRIA                                                *)
+(*                                                                        *)
+(*  All rights reserved.This file is distributed under the terms of the   *)
+(*  GNU Lesser General Public License version 3.0 with linking            *)
+(*  exception.                                                            *)
+(*                                                                        *)
+(*  OPAM is distributed in the hope that it will be useful, but WITHOUT   *)
+(*  ANY WARRANTY; without even the implied warranty of MERCHANTABILITY    *)
+(*  or FITNESS FOR A PARTICULAR PURPOSE.See the GNU General Public        *)
+(*  License for more details.                                             *)
+(*                                                                        *)
+(**************************************************************************)
 
 open OpamTypes
 open OpamMisc.OP
@@ -25,16 +26,16 @@ let empty = {
 
 let variables items =
   let l = List.fold_left (fun accu -> function
-    | Variable (k,v) -> (k,v) :: accu
-    | _              -> accu
-  ) [] items in
+      | Variable (k,v) -> (k,v) :: accu
+      | _              -> accu
+    ) [] items in
   List.rev l
 
 let sections items =
   let l = List.fold_left (fun accu -> function
-    | Section s -> (s.section_kind, s) :: accu
-    | _          -> accu
-  ) [] items in
+      | Section s -> (s.section_kind, s) :: accu
+      | _          -> accu
+    ) [] items in
   List.rev l
 
 exception Bad_format of string
@@ -56,7 +57,7 @@ let names items =
     List.iter (function
       | Variable (f, _) -> add f
       | Section s       -> aux s.section_items
-  ) items in
+    ) items in
   aux items;
   !tbl
 
@@ -80,7 +81,7 @@ let rec kind = function
   | Option(o,l) -> Printf.sprintf "option(%s,%s)" (kind o) (kinds l)
 
 and kinds l =
-  Printf.sprintf "{%s}" (String.concat " " (List.rev_map kind l))
+  Printf.sprintf "{%s}" (String.concat " " (List.map kind l))
 
 (* Base parsing functions *)
 let parse_bool = function
@@ -109,7 +110,7 @@ let parse_list fn = function
 
 let parse_group fn = function
   | Group g -> List.rev (List.rev_map fn g)
-  | x        -> bad_format "Expecting a group, got %s" (kind x)
+  | x       -> bad_format "Expecting a group, got %s" (kind x)
 
 let parse_option f g = function
   | Option (k,l) -> f k, Some (g l)
@@ -146,24 +147,24 @@ let parse_or fns v =
   let dbg = List.map fst fns in
   let rec aux = function
     | []   ->
-        bad_format "Expecting %s, got %s" (String.concat " or " dbg) (kind v)
+      bad_format "Expecting %s, got %s" (String.concat " or " dbg) (kind v)
     | (_,h)::t ->
-        try h v
-        with Bad_format _ -> aux t in
+      try h v
+      with Bad_format _ -> aux t in
   aux fns
 
 let parse_sequence fns v =
   match v with
   | List l ->
-      let rec aux = function
-        | (_,f) :: fns, h :: t -> f h :: aux (fns, t)
-        | [], [] -> []
-        | _ ->
-            bad_format
-              "Expecting %s, got %d values"
-              (String.concat ", " (List.map fst fns))
-              (List.length l) in
-      aux (fns, l)
+    let rec aux = function
+      | (_,f) :: fns, h :: t -> f h :: aux (fns, t)
+      | [], [] -> []
+      | _ ->
+        bad_format
+          "Expecting %s, got %d values"
+          (String.concat ", " (List.map fst fns))
+          (List.length l) in
+    aux (fns, l)
   | x      -> bad_format "Expecting a list, got %s" (kind x)
 
 
@@ -205,19 +206,19 @@ let rec pretty_string_of_value ?(indent_hint = []) = function
   | String s    -> Printf.sprintf "%S" s
   | List[List[]]-> Printf.sprintf "[[]]"
   | List l      ->
-      let force_indent, indent_hint =
-        match indent_hint with
-          | [] -> false, []
-          | b :: indent_hint -> b, indent_hint in
-      if force_indent || List.for_all is_list l then
-        Printf.sprintf "[\n  %s\n]" (pretty_string_of_values ~indent_hint "\n  " l)
-      else
-        Printf.sprintf "[%s]" (pretty_string_of_values ~indent_hint " " l)
+    let force_indent, indent_hint =
+      match indent_hint with
+      | [] -> false, []
+      | b :: indent_hint -> b, indent_hint in
+    if force_indent || List.for_all is_list l then
+      Printf.sprintf "[\n  %s\n]" (pretty_string_of_values ~indent_hint "\n  " l)
+    else
+      Printf.sprintf "[%s]" (pretty_string_of_values ~indent_hint " " l)
   | Group g     -> Printf.sprintf "(%s)" (pretty_string_of_values ~indent_hint " " g)
   | Option(v,l) ->
-      Printf.sprintf "%s {%s}"
-        (pretty_string_of_value ~indent_hint v)
-        (pretty_string_of_values ~indent_hint " " l)
+    Printf.sprintf "%s {%s}"
+      (pretty_string_of_value ~indent_hint v)
+      (pretty_string_of_values ~indent_hint " " l)
 
 and pretty_string_of_values ?(indent_hint = []) sep l =
   String.concat sep (List.rev (List.rev_map (pretty_string_of_value ~indent_hint) l))
@@ -242,7 +243,7 @@ let rec string_of_item_aux tab ?(indent_variable = fun _ -> false) = function
   | Variable (_, List[List[]]) -> None
   | Variable (i, v) -> Some (Printf.sprintf "%s%s: %s" tab i (pretty_string_of_value ~indent_hint:[indent_variable i] v))
   | Section s ->
-      Some (Printf.sprintf "%s%s %S {\n%s\n}"
+    Some (Printf.sprintf "%s%s %S {\n%s\n}"
         tab s.section_kind s.section_name
         (string_of_items_aux (incr tab) ~indent_variable s.section_items))
 
@@ -428,10 +429,10 @@ let make_os_constraint l =
 
 let parse_env_variable v =
   let l = parse_sequence [
-    ("ident" , parse_ident);
-    ("symbol", parse_symbol);
-    ("string", parse_string);
-  ] v in
+      ("ident" , parse_ident);
+      ("symbol", parse_symbol);
+      ("string", parse_string);
+    ] v in
   match l with
   | [ident; symbol; string] -> (ident, symbol, string)
   | _ -> assert false
@@ -442,10 +443,11 @@ let make_env_variable (ident, symbol, string) =
 (* Filters *)
 
 let rec parse_filter = function
-  | [Bool b]   -> FBool b
-  | [String s] -> FString s
-  | [Ident s]  -> FIdent s
-  | [Group g]  -> parse_filter g
+  | [Bool b]         -> FBool b
+  | [String s]       -> FString s
+  | [Ident s]        -> FIdent s
+  | [Group g]        -> parse_filter g
+  | [Symbol "!"; f]  -> FNot (parse_filter [f])
   | [e; Symbol s; f] ->
     let open OpamTypes in
     let e = parse_filter [e] in
@@ -470,18 +472,11 @@ let lift = function
   | l   -> Group l
 
 let rec make_filter = function
-  | FString s -> [String s]
-  | FIdent s  -> [Ident s]
-  | FBool b   -> [Bool b]
+  | FString s  -> [String s]
+  | FIdent s   -> [Ident s]
+  | FBool b    -> [Bool b]
   | FOp(e,s,f) ->
-    let s = begin match s with
-      | Eq  -> Symbol "="
-      | Neq -> Symbol "!="
-      | Ge  -> Symbol ">="
-      | Le  -> Symbol "<="
-      | Gt  -> Symbol ">"
-      | Lt  -> Symbol "<"
-      end in
+    let s = Symbol (string_of_symbol s) in
     let e = lift (make_filter e) in
     let f = lift (make_filter f) in
     [ e; s; f]
@@ -493,6 +488,7 @@ let rec make_filter = function
     let e = lift (make_filter e) in
     let f = lift (make_filter f) in
     [ e; Symbol "&"; f ]
+  | FNot f -> [Symbol "!"; lift (make_filter f)]
 
 let make_simple_arg = function
   | CString s -> make_string s
@@ -525,6 +521,11 @@ let parse_commands =
     "command-list", parse_list parse_command;
   ]
 
+let parse_message =
+  parse_option parse_string parse_filter
+
+let parse_messages =
+  parse_list parse_message
 
 (* TAGS *)
 

@@ -1,17 +1,18 @@
-(***********************************************************************)
-(*                                                                     *)
-(*    Copyright 2012 OCamlPro                                          *)
-(*    Copyright 2012 INRIA                                             *)
-(*                                                                     *)
-(*  All rights reserved.  This file is distributed under the terms of  *)
-(*  the GNU Public License version 3.0.                                *)
-(*                                                                     *)
-(*  OPAM is distributed in the hope that it will be useful,            *)
-(*  but WITHOUT ANY WARRANTY; without even the implied warranty of     *)
-(*  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the      *)
-(*  GNU General Public License for more details.                       *)
-(*                                                                     *)
-(***********************************************************************)
+(**************************************************************************)
+(*                                                                        *)
+(*    Copyright 2012-2013 OCamlPro                                        *)
+(*    Copyright 2012 INRIA                                                *)
+(*                                                                        *)
+(*  All rights reserved.This file is distributed under the terms of the   *)
+(*  GNU Lesser General Public License version 3.0 with linking            *)
+(*  exception.                                                            *)
+(*                                                                        *)
+(*  OPAM is distributed in the hope that it will be useful, but WITHOUT   *)
+(*  ANY WARRANTY; without even the implied warranty of MERCHANTABILITY    *)
+(*  or FITNESS FOR A PARTICULAR PURPOSE.See the GNU General Public        *)
+(*  License for more details.                                             *)
+(*                                                                        *)
+(**************************************************************************)
 
 (** Basic functions *)
 
@@ -172,6 +173,9 @@ val sub_at: int -> string -> string
 (** Cut a git string of the form /git/address[#SHA] into (address * commit) *)
 val git_of_string: string -> string * string option
 
+(** same as [git_of_string] but for mercurial paths *)
+val hg_of_string: string -> string * string option
+
 (** {2 Misc} *)
 
 (** Remove from a ':' separated list of string the one with the given prefix *)
@@ -217,4 +221,7 @@ val terminal_columns : unit -> int
 val uname_s: unit -> string option
 
 (** Guess the shell compat-mode *)
-val guess_shell_compat: unit -> [`sh|`csh|`zsh]
+val guess_shell_compat: unit -> [`csh|`zsh|`sh|`bash|`fish]
+
+(** Guess the location of .profile *)
+val guess_dot_profile: [`csh|`zsh|`sh|`bash|`fish] -> string

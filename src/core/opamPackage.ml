@@ -1,17 +1,18 @@
-(***********************************************************************)
-(*                                                                     *)
-(*    Copyright 2012 OCamlPro                                          *)
-(*    Copyright 2012 INRIA                                             *)
-(*                                                                     *)
-(*  All rights reserved.  This file is distributed under the terms of  *)
-(*  the GNU Public License version 3.0.                                *)
-(*                                                                     *)
-(*  OPAM is distributed in the hope that it will be useful,            *)
-(*  but WITHOUT ANY WARRANTY; without even the implied warranty of     *)
-(*  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the      *)
-(*  GNU General Public License for more details.                       *)
-(*                                                                     *)
-(***********************************************************************)
+(**************************************************************************)
+(*                                                                        *)
+(*    Copyright 2012-2013 OCamlPro                                        *)
+(*    Copyright 2012 INRIA                                                *)
+(*                                                                        *)
+(*  All rights reserved.This file is distributed under the terms of the   *)
+(*  GNU Lesser General Public License version 3.0 with linking            *)
+(*  exception.                                                            *)
+(*                                                                        *)
+(*  OPAM is distributed in the hope that it will be useful, but WITHOUT   *)
+(*  ANY WARRANTY; without even the implied warranty of MERCHANTABILITY    *)
+(*  or FITNESS FOR A PARTICULAR PURPOSE.See the GNU General Public        *)
+(*  License for more details.                                             *)
+(*                                                                        *)
+(**************************************************************************)
 
 open OpamMisc.OP
 
@@ -51,8 +52,8 @@ module Name = struct
 
   let compare n1 n2 =
     match compare (String.lowercase n1) (String.lowercase n2) with
-      | 0 -> compare n1 n2
-      | i -> i
+    | 0 -> compare n1 n2
+    | i -> i
 
   module O = struct
     type t = string
@@ -83,8 +84,8 @@ let of_string_opt s =
   if OpamMisc.contains s ' ' || OpamMisc.contains s '\n' then
     None
   else match OpamMisc.cut_at s sep with
-  | None        -> None
-  | Some (n, v) -> Some { name = Name.of_string n; version = Version.of_string v }
+    | None        -> None
+    | Some (n, v) -> Some { name = Name.of_string n; version = Version.of_string v }
 
 let of_string s = match of_string_opt s with
   | Some x -> x

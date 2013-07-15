@@ -1,24 +1,25 @@
-(***********************************************************************)
-(*                                                                     *)
-(*    Copyright 2012 OCamlPro                                          *)
-(*    Copyright 2012 INRIA                                             *)
-(*                                                                     *)
-(*  All rights reserved.  This file is distributed under the terms of  *)
-(*  the GNU Public License version 3.0.                                *)
-(*                                                                     *)
-(*  OPAM is distributed in the hope that it will be useful,            *)
-(*  but WITHOUT ANY WARRANTY; without even the implied warranty of     *)
-(*  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the      *)
-(*  GNU General Public License for more details.                       *)
-(*                                                                     *)
-(***********************************************************************)
+(**************************************************************************)
+(*                                                                        *)
+(*    Copyright 2012-2013 OCamlPro                                        *)
+(*    Copyright 2012 INRIA                                                *)
+(*                                                                        *)
+(*  All rights reserved.This file is distributed under the terms of the   *)
+(*  GNU Lesser General Public License version 3.0 with linking            *)
+(*  exception.                                                            *)
+(*                                                                        *)
+(*  OPAM is distributed in the hope that it will be useful, but WITHOUT   *)
+(*  ANY WARRANTY; without even the implied warranty of MERCHANTABILITY    *)
+(*  or FITNESS FOR A PARTICULAR PURPOSE.See the GNU General Public        *)
+(*  License for more details.                                             *)
+(*                                                                        *)
+(**************************************************************************)
 
 (** Switch commands. *)
 
 open OpamTypes
 
 (** Install a new switch. *)
-val install: quiet:bool -> warning:bool -> switch -> compiler -> unit
+val install: quiet:bool -> warning:bool -> update_config:bool -> switch -> compiler -> unit
 
 (** Import a file which contains the packages to install. *)
 val import: filename option -> unit
@@ -39,5 +40,4 @@ val reinstall: switch -> unit
 val show: unit -> unit
 
 (** List all the available compiler switches. *)
-val list: print_short:bool -> installed_only:bool -> unit
-
+val list: print_short:bool -> installed:bool -> unit

@@ -1,17 +1,18 @@
-(***********************************************************************)
-(*                                                                     *)
-(*    Copyright 2011-2012 OCamlPro                                     *)
-(*    Copyright 2011-2012 INRIA                                        *)
-(*                                                                     *)
-(*  All rights reserved.  This file is distributed under the terms of  *)
-(*  the GNU Public License version 3.0.                                *)
-(*                                                                     *)
-(*  OPAM is distributed in the hope that it will be useful,            *)
-(*  but WITHOUT ANY WARRANTY; without even the implied warranty of     *)
-(*  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the      *)
-(*  GNU General Public License for more details.                       *)
-(*                                                                     *)
-(***********************************************************************)
+(**************************************************************************)
+(*                                                                        *)
+(*    Copyright 2012-2013 OCamlPro                                        *)
+(*    Copyright 2012 INRIA                                                *)
+(*                                                                        *)
+(*  All rights reserved.This file is distributed under the terms of the   *)
+(*  GNU Lesser General Public License version 3.0 with linking            *)
+(*  exception.                                                            *)
+(*                                                                        *)
+(*  OPAM is distributed in the hope that it will be useful, but WITHOUT   *)
+(*  ANY WARRANTY; without even the implied warranty of MERCHANTABILITY    *)
+(*  or FITNESS FOR A PARTICULAR PURPOSE.See the GNU General Public        *)
+(*  License for more details.                                             *)
+(*                                                                        *)
+(**************************************************************************)
 
 type t = {
   p_name   : string;
@@ -23,9 +24,10 @@ type t = {
   p_stderr : string option;
   p_env    : string option;
   p_info   : string option;
+  p_metadata: (string * string) list;
 }
 
-let open_flags =  [Unix.O_WRONLY; Unix.O_CREAT; Unix.O_TRUNC]
+let open_flags =  [Unix.O_WRONLY; Unix.O_CREAT; Unix.O_TRUNC; Unix.O_EXCL]
 
 let output_lines oc lines =
   List.iter (fun line ->
@@ -44,37 +46,38 @@ let option_default d = function
   | None   -> d
   | Some v -> v
 
-let make_info ?code ~cmd ~args ~cwd ~env_file ~stdout_file ~stderr_file () =
-  let b = Buffer.create 2048 in
-  let print name str =
-    Printf.bprintf b "# %-15s %s\n" name str in
+let make_info ?code ~cmd ~args ~cwd ~env_file ~stdout_file ~stderr_file ~metadata () =
+  let b = ref [] in
+  let print name str = b := (name, str) :: !b in
   let print_opt name = function
     | None   -> ()
     | Some s -> print name s in
-  let git_version = match OpamVersion.git with
-    | None   -> ""
-    | Some v -> Printf.sprintf " (%s)" (OpamVersion.to_string v) in
-  let opam_version =
-    Printf.sprintf "%s%s" (OpamVersion.to_string OpamVersion.current) git_version in
-  let os = OpamGlobals.os_string () in
 
-  print     "opam-version" opam_version;
-  print     "os" os;
-  print     "command" (String.concat " " (cmd :: args));
-  print     "path"   cwd;
-  print_opt "exit-code" (option_map string_of_int code);
-  print_opt "env-file" env_file;
-  print_opt "stdout-file" stdout_file;
-  print_opt "stderr-file" stderr_file;
+  print     "opam-version" (OpamVersion.to_string OpamVersion.full);
+  print     "os"           (OpamGlobals.os_string ());
+  print     "command"      (String.concat " " (cmd :: args));
+  print     "path"         cwd;
+  List.iter (fun (k,v) -> print k v) metadata;
+  print_opt "exit-code"    (option_map string_of_int code);
+  print_opt "env-file"     env_file;
+  print_opt "stdout-file"  stdout_file;
+  print_opt "stderr-file"  stderr_file;
 
+  List.rev !b
+
+let string_of_info info =
+  let b = Buffer.create 1024 in
+  List.iter (fun (k,v) -> Printf.bprintf b "# %-15s %s\n" k v) info;
   Buffer.contents b
 
-let create ?info_file ?env_file ?stdout_file ?stderr_file ?env ~verbose cmd args =
+let create ?info_file ?env_file ?stdout_file ?stderr_file ?env ?(metadata=[])
+    ~verbose cmd args =
   let nothing () = () in
   let tee f =
     let fd = Unix.openfile f open_flags 0o644 in
     let close_fd () = Unix.close fd in
     if verbose then (
+      flush stderr;
       let chan = Unix.open_process_out ("tee " ^ Filename.quote f) in
       let close () =
         match Unix.close_process_out chan with
@@ -112,8 +115,9 @@ let create ?info_file ?env_file ?stdout_file ?stderr_file ?env ~verbose cmd args
     | None   -> ()
     | Some f ->
       let chan = open_out f in
-      let info = make_info ~cmd ~args ~cwd ~env_file ~stdout_file ~stderr_file () in
-      output_string chan info;
+      let info =
+        make_info ~cmd ~args ~cwd ~env_file ~stdout_file ~stderr_file ~metadata () in
+      output_string chan (string_of_info info);
       close_out chan in
 
   let pid =
@@ -134,12 +138,13 @@ let create ?info_file ?env_file ?stdout_file ?stderr_file ?env ~verbose cmd args
     p_stderr = stderr_file;
     p_env    = env_file;
     p_info   = info_file;
+    p_metadata = metadata;
   }
 
 type result = {
   r_code     : int;
   r_duration : float;
-  r_info     : string;
+  r_info     : (string * string) list;
   r_stdout   : string list;
   r_stderr   : string list;
   r_cleanup  : string list;
@@ -171,9 +176,10 @@ let wait p =
       let stdout = option_default [] (option_map read_lines p.p_stdout) in
       let stderr = option_default [] (option_map read_lines p.p_stderr) in
       let cleanup =
-        OpamMisc.filter_map (fun x -> x) [ p.p_info; p.p_env; p.p_stderr; p.p_stdout ] in
+        OpamMisc.filter_map (fun x -> x) [ p.p_info; p.p_env; p.p_stderr; p.p_stdout ]
+      in
       let info =
-        make_info ~code ~cmd:p.p_name ~args:p.p_args ~cwd:p.p_cwd
+        make_info ~code ~cmd:p.p_name ~args:p.p_args ~cwd:p.p_cwd ~metadata:p.p_metadata
           ~env_file:p.p_env ~stdout_file:p.p_stdout ~stderr_file:p.p_stderr () in
       {
         r_code     = code;
@@ -186,7 +192,7 @@ let wait p =
     | _ -> iter () in
   iter ()
 
-let run ?env ?(verbose=false) ?name cmd args =
+let run ?env ?(verbose=false) ?name ?(metadata=[]) cmd args =
   let file f = match name with
     | None   -> None
     | Some n -> Some (f n) in
@@ -196,7 +202,9 @@ let run ?env ?(verbose=false) ?name cmd args =
   let info_file   = file (Printf.sprintf "%s.info") in
   let env = match env with Some e -> e | None -> Unix.environment () in
 
-  let p = create ~env ?info_file ?env_file ?stdout_file ?stderr_file ~verbose cmd args in
+  let p =
+    create ~env ?info_file ?env_file ?stdout_file ?stderr_file ~verbose ~metadata
+      cmd args in
   wait p
 
 let is_success r = r.r_code = 0
@@ -227,8 +235,8 @@ let rec truncate = function
     else if List.length l = OpamGlobals.log_limit then
       truncate_str :: l
     else match l with
-    | []     -> []
-    | _ :: t -> truncate t
+      | []     -> []
+      | _ :: t -> truncate t
 
 let string_of_result r =
   let b = Buffer.create 2048 in
@@ -237,7 +245,7 @@ let string_of_result r =
     print str;
     Buffer.add_char b '\n' in
 
-  print r.r_info;
+  print (string_of_info r.r_info);
 
   if r.r_stdout <> [] then
     print "### stdout ###\n";

@@ -1,17 +1,18 @@
-(***********************************************************************)
-(*                                                                     *)
-(*    Copyright 2012 OCamlPro                                          *)
-(*    Copyright 2012 INRIA                                             *)
-(*                                                                     *)
-(*  All rights reserved.  This file is distributed under the terms of  *)
-(*  the GNU Public License version 3.0.                                *)
-(*                                                                     *)
-(*  OPAM is distributed in the hope that it will be useful,            *)
-(*  but WITHOUT ANY WARRANTY; without even the implied warranty of     *)
-(*  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the      *)
-(*  GNU General Public License for more details.                       *)
-(*                                                                     *)
-(***********************************************************************)
+(**************************************************************************)
+(*                                                                        *)
+(*    Copyright 2012-2013 OCamlPro                                        *)
+(*    Copyright 2012 INRIA                                                *)
+(*                                                                        *)
+(*  All rights reserved.This file is distributed under the terms of the   *)
+(*  GNU Lesser General Public License version 3.0 with linking            *)
+(*  exception.                                                            *)
+(*                                                                        *)
+(*  OPAM is distributed in the hope that it will be useful, but WITHOUT   *)
+(*  ANY WARRANTY; without even the implied warranty of MERCHANTABILITY    *)
+(*  or FITNESS FOR A PARTICULAR PURPOSE.See the GNU General Public        *)
+(*  License for more details.                                             *)
+(*                                                                        *)
+(**************************************************************************)
 
 let log fmt = OpamGlobals.log "CONFIG" fmt
 
@@ -93,7 +94,7 @@ let list ns =
     ) [] configs in
   let contents =
     List.map
-      (fun v -> v, OpamState.contents_of_variable t v)
+      (fun v -> v, OpamState.contents_of_variable_exn t v)
       variables in
   List.iter (fun (variable, contents) ->
     OpamGlobals.msg "%-40s %s\n"
@@ -246,12 +247,28 @@ let print_csh_env env =
     OpamGlobals.msg "setenv %s %S;\n" k v;
   ) env
 
-let env ~csh =
+let print_sexp_env env =
+  OpamGlobals.msg "(\n";
+  List.iter (fun (k,v) ->
+    OpamGlobals.msg "  (%S %S)\n" k v;
+  ) env;
+  OpamGlobals.msg ")\n"
+
+let print_fish_env env =
+  List.iter (fun (k,v) ->
+    OpamGlobals.msg "set -x %s %s;\n" k (String.concat " " (OpamMisc.split v ':'));
+  ) env
+
+let env ~csh ~sexp ~fish=
   log "config-env";
   let t = OpamState.load_env_state "config-env" in
   let env = OpamState.get_opam_env t in
-  if csh then
+  if sexp then
+    print_sexp_env env
+  else if csh then
     print_csh_env env
+  else if fish then
+    print_fish_env env
   else
     print_env env
 
@@ -260,10 +277,36 @@ let subst fs =
   let t = OpamState.load_state "config-substitute" in
   List.iter (OpamState.substitute_file t) fs
 
+let quick_lookup v =
+  let name = OpamVariable.Full.package v in
+  let var = OpamVariable.Full.variable v in
+  if name = OpamPackage.Name.default then (
+    let root = OpamPath.default () in
+    let switch = match !OpamGlobals.switch with
+      | `Command_line s
+      | `Env s   -> OpamSwitch.of_string s
+      | `Not_set ->
+	let config = OpamPath.config root in
+	OpamFile.Config.switch (OpamFile.Config.read config) in
+    let config = OpamPath.Switch.config root switch OpamPackage.Name.default in
+    let config = OpamFile.Dot_config.read config in
+
+    if OpamVariable.to_string var = "switch" then
+      Some (S (OpamSwitch.to_string switch))
+    else match OpamVariable.Full.section v with
+    | None   -> OpamFile.Dot_config.variable config var
+    | Some s -> OpamFile.Dot_config.Section.variable config s var
+  ) else
+    None
+
 let variable v =
   log "config-variable";
-  let t = OpamState.load_state "config-variable" in
-  let contents = OpamState.contents_of_variable t v in
+  let contents =
+    match quick_lookup v with
+    | Some c -> c
+    | None   ->
+      let t = OpamState.load_state "config-variable" in
+      OpamState.contents_of_variable_exn t v in
   OpamGlobals.msg "%s\n" (OpamVariable.string_of_variable_contents contents)
 
 let setup user global =

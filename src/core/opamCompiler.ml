@@ -1,17 +1,18 @@
-(***********************************************************************)
-(*                                                                     *)
-(*    Copyright 2012 OCamlPro                                          *)
-(*    Copyright 2012 INRIA                                             *)
-(*                                                                     *)
-(*  All rights reserved.  This file is distributed under the terms of  *)
-(*  the GNU Public License version 3.0.                                *)
-(*                                                                     *)
-(*  OPAM is distributed in the hope that it will be useful,            *)
-(*  but WITHOUT ANY WARRANTY; without even the implied warranty of     *)
-(*  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the      *)
-(*  GNU General Public License for more details.                       *)
-(*                                                                     *)
-(***********************************************************************)
+(**************************************************************************)
+(*                                                                        *)
+(*    Copyright 2012-2013 OCamlPro                                        *)
+(*    Copyright 2012 INRIA                                                *)
+(*                                                                        *)
+(*  All rights reserved.This file is distributed under the terms of the   *)
+(*  GNU Lesser General Public License version 3.0 with linking            *)
+(*  exception.                                                            *)
+(*                                                                        *)
+(*  OPAM is distributed in the hope that it will be useful, but WITHOUT   *)
+(*  ANY WARRANTY; without even the implied warranty of MERCHANTABILITY    *)
+(*  or FITNESS FOR A PARTICULAR PURPOSE.See the GNU General Public        *)
+(*  License for more details.                                             *)
+(*                                                                        *)
+(**************************************************************************)
 
 open OpamMisc.OP
 
@@ -20,6 +21,11 @@ let log fmt = OpamGlobals.log "COMPILER" fmt
 module Version = struct
 
   include OpamMisc.Base
+
+  let of_string str =
+    match OpamMisc.cut_at str '+' with
+    | None       -> of_string str
+    | Some (s,_) -> of_string s
 
   type constr = (OpamFormula.relop * t) OpamFormula.formula
 
@@ -48,11 +54,15 @@ end
 
 include OpamMisc.Base
 
-let of_filename =
-  OpamFilename.chop_extension
-  |> OpamFilename.basename
-  |> OpamFilename.Base.to_string
-  |> of_string
+let of_filename f =
+  if not (OpamFilename.check_suffix f ".comp") then None
+  else
+    Some ((
+        OpamFilename.chop_extension
+        |> OpamFilename.basename
+        |> OpamFilename.Base.to_string
+        |> of_string
+      ) f)
 
 let list t =
   log "list dir=%s" (OpamFilename.Dir.to_string t);
@@ -72,8 +82,11 @@ let list t =
         else
           (c, None)
       ) comps in
-    let l = List.map (fun (c,d) -> of_filename c, (c, d)) pairs in
-    Map.of_list l
+    List.fold_left (fun map (f,d) ->
+        match of_filename f with
+        | None   -> map
+        | Some c -> Map.add c (f,d) map
+      ) Map.empty pairs
   ) else
     Map.empty
 

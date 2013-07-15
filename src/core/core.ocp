@@ -25,6 +25,7 @@ begin library "opam-core"
     "opamPath.ml"
     "opamFile.ml"
     "opamRepository.ml"
+    "opamJson.ml"
   ]
 
   requires = [
@@ -33,6 +34,7 @@ begin library "opam-core"
     "unix"
     "graph"
     "re_glob"
+    "re_str"
   ]
 
 end

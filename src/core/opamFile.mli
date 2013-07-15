@@ -1,17 +1,18 @@
-(***********************************************************************)
-(*                                                                     *)
-(*    Copyright 2012 OCamlPro                                          *)
-(*    Copyright 2012 INRIA                                             *)
-(*                                                                     *)
-(*  All rights reserved.  This file is distributed under the terms of  *)
-(*  the GNU Public License version 3.0.                                *)
-(*                                                                     *)
-(*  OPAM is distributed in the hope that it will be useful,            *)
-(*  but WITHOUT ANY WARRANTY; without even the implied warranty of     *)
-(*  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the      *)
-(*  GNU General Public License for more details.                       *)
-(*                                                                     *)
-(***********************************************************************)
+(**************************************************************************)
+(*                                                                        *)
+(*    Copyright 2012-2013 OCamlPro                                        *)
+(*    Copyright 2012 INRIA                                                *)
+(*                                                                        *)
+(*  All rights reserved.This file is distributed under the terms of the   *)
+(*  GNU Lesser General Public License version 3.0 with linking            *)
+(*  exception.                                                            *)
+(*                                                                        *)
+(*  OPAM is distributed in the hope that it will be useful, but WITHOUT   *)
+(*  ANY WARRANTY; without even the implied warranty of MERCHANTABILITY    *)
+(*  or FITNESS FOR A PARTICULAR PURPOSE.See the GNU General Public        *)
+(*  License for more details.                                             *)
+(*                                                                        *)
+(**************************************************************************)
 
 open OpamTypes
 
@@ -156,6 +157,9 @@ module OPAM: sig
   (** Commands to build the documentation *)
   val build_doc: t -> command list
 
+  (** Commands to build the documentation *)
+  val messages: t -> (string * filter option) list
+
   (** Construct as [depends] *)
   val with_depends : t -> formula -> t
 
@@ -208,15 +212,12 @@ module Export: IO_FILE with type t = package_set * package_set
 (** List of installed packages: [$opam/$oversion/installed] *)
 module Installed: IO_FILE with type t = package_set
 
-(** List of packages explicitely installed by the user:
+(** List of packages explicitly installed by the user:
     [$opam/$switch/installed.user] *)
 module Installed_roots: IO_FILE with type t = package_set
 
 (** List of packages to reinstall: [$opam/$oversion/reinstall] *)
 module Reinstall: IO_FILE with type t = package_set
-
-(** List of updated packages: [$opam/$repo/$repo/updated] *)
-module Updated: IO_FILE with type t = package_set
 
 (** Compiler version [$opam/compilers/] *)
 module Comp: sig
@@ -250,7 +251,7 @@ module Comp: sig
 
   (** Options to give to build the package. If this one is provided,
       nothing should be specified for [configure] and [make]. *)
-  val build: t -> string list list
+  val build: t -> command list
 
   (** Packages to install immediately after the creation of OCaml *)
   val packages: t -> formula
@@ -296,16 +297,22 @@ module Dot_install: sig
   val bin:  t -> (basename optional * basename option) list
 
   (** List of files to install in $lib/ *)
-  val lib:  t -> basename optional list
+  val lib:  t -> (basename optional * basename option) list
 
   (** List of toplevel files *)
-  val toplevel: t -> basename optional list
+  val toplevel: t -> (basename optional * basename option) list
+
+  (** C bindings *)
+  val stublibs: t -> (basename optional * basename option) list
 
   (** List of shared files *)
-  val share: t -> basename optional list
+  val share: t -> (basename optional * basename option) list
 
   (** List of doc files *)
-  val doc: t -> basename optional list
+  val doc: t -> (basename optional * basename option) list
+
+  (** Man pages *)
+  val man: t -> (basename optional * basename option) list
 
   (** List of other files to install *)
   val misc: t -> (basename optional * filename) list
@@ -344,7 +351,7 @@ module Dot_config: sig
     val requires: t -> section -> section list
 
     (** Return the value of variables *)
-    val variable: t -> section -> variable  -> variable_contents
+    val variable: t -> section -> variable  -> variable_contents option
 
     (** The list of local variables *)
     val variables: t -> section -> variable list
@@ -361,7 +368,7 @@ module Dot_config: sig
   module Syntax: SECTION
 
   (** Top-level variables *)
-  val variable: t -> variable  -> variable_contents
+  val variable: t -> variable  -> variable_contents option
 
   (** The list of top-level variables *)
   val variables: t -> variable list
@@ -370,8 +377,16 @@ end
 
 (** {2 Repository files} *)
 
-(** Association between package names and repository: [$opam/repo/index] *)
+(** Association between package names and repositories: [$opam/repo/index] *)
 module Repo_index: IO_FILE with type t = repository_name list name_map
+
+(** Association between packages and repositories:
+    [$opam/repo/index.packages] *)
+module Package_index: IO_FILE with type t = repository_name package_map option
+
+(** Association between compiler and repositories:
+    [$opam/repo/index.packages] *)
+module Compiler_index: IO_FILE with type t = repository_name compiler_map
 
 (** Repository config: [$opam/repo/$repo/config] *)
 module Repo_config: IO_FILE with type t = repository
@@ -402,7 +417,7 @@ module URL: sig
   (** URL address *)
   val url: t -> string
 
-  (** Backend kind (could be curl/rsync/git/darcs at the moment) *)
+  (** Backend kind (could be curl/rsync/git/darcs/hg at the moment) *)
   val kind: t -> repository_kind option
 
   (** Archive checksum *)
@@ -414,7 +429,7 @@ module URL: sig
 end
 
 (** {2 urls.txt file *} *)
-module Urls_txt: IO_FILE with type t = file_attribute_set
+module File_attributes: IO_FILE with type t = file_attribute_set
 
 (** List of filenames *)
 module Filenames: IO_FILE with type t = filename_set

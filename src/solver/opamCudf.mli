@@ -1,17 +1,18 @@
-(***********************************************************************)
-(*                                                                     *)
-(*    Copyright 2012 OCamlPro                                          *)
-(*    Copyright 2012 INRIA                                             *)
-(*                                                                     *)
-(*  All rights reserved.  This file is distributed under the terms of  *)
-(*  the GNU Public License version 3.0.                                *)
-(*                                                                     *)
-(*  OPAM is distributed in the hope that it will be useful,            *)
-(*  but WITHOUT ANY WARRANTY; without even the implied warranty of     *)
-(*  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the      *)
-(*  GNU General Public License for more details.                       *)
-(*                                                                     *)
-(***********************************************************************)
+(**************************************************************************)
+(*                                                                        *)
+(*    Copyright 2012-2013 OCamlPro                                        *)
+(*    Copyright 2012 INRIA                                                *)
+(*                                                                        *)
+(*  All rights reserved.This file is distributed under the terms of the   *)
+(*  GNU Lesser General Public License version 3.0 with linking            *)
+(*  exception.                                                            *)
+(*                                                                        *)
+(*  OPAM is distributed in the hope that it will be useful, but WITHOUT   *)
+(*  ANY WARRANTY; without even the implied warranty of MERCHANTABILITY    *)
+(*  or FITNESS FOR A PARTICULAR PURPOSE.See the GNU General Public        *)
+(*  License for more details.                                             *)
+(*                                                                        *)
+(**************************************************************************)
 
 (** Cudf interface *)
 
@@ -31,9 +32,12 @@ module Graph: sig
   (** Build a graph from a CUDF universe *)
   val of_universe: Cudf.universe -> t
 
+  (** Return the transitive closure of [g] *)
+  val transitive_closure: t -> t
+
   (** Return the transitive closure of dependencies of [set],
-      sorted in topological order *)
-  val closure: t -> Set.t -> Cudf.package list
+      sorted in topological order. *)
+  val close_and_linearize: t -> Set.t -> Cudf.package list
 end
 
 (** Difference between universes *)
@@ -95,8 +99,20 @@ val resolve:
   Cudf_types.vpkg request ->
   (Cudf.package action list, Algo.Diagnostic.reason list) result
 
-(** Remove a package from an universe *)
-val uninstall: string -> Cudf.universe -> Cudf.universe
+(** Remove all the packages having a given universe *)
+val remove: Cudf.universe -> Cudf_types.pkgname -> Cudf.universe
+
+(** Uninstall all the package in the universe. *)
+val uninstall_all: Cudf.universe -> Cudf.universe
+
+(** Install a package in the universe. We don't care about any
+    invariant here (eg. the resulting universe can have mutliple
+    versions of the same package installed). *)
+val install: Cudf.universe -> Cudf.package -> Cudf.universe
+
+(** Remove all the versions of a given package, but the one given as argument. *)
+val remove_all_uninstalled_versions_but:
+  string -> Cudf_types.constr -> Cudf.universe -> Cudf.universe
 
 (** The "reinstall" string *)
 val s_reinstall: string
@@ -105,6 +121,9 @@ val s_reinstall: string
 val s_installed_root: string
 
 (** {2 Pretty-printing} *)
+
+(** Convert a package constraint to something readable. *)
+val string_of_vpkgs: Cudf_types.vpkg list -> string
 
 (** Convert a reason to something readable by the user *)
 val string_of_reason: (Cudf.package -> package) -> Algo.Diagnostic.reason -> string option

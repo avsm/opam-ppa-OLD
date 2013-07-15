@@ -1,6 +1,6 @@
 .\" Pipe this output to groff -man -Tutf8 | less
 .\"
-.TH "OPAM-REMOVE" 1 "" "Opam 1.0.0" "Opam Manual"
+.TH "OPAM-REMOVE" 1 "" "Opam 1.0.1" "Opam Manual"
 .\" Disable hyphenantion and ragged-right
 .nh
 .ad l
@@ -20,7 +20,7 @@ List of package names.
 .SH OPTIONS
 .TP 4
 \fB\-a\fR, \fB\-\-auto\-remove\fR
-Remove all the packages which have not been explicitely installed and which are not necessary anymore. It is possible to enforce keeping an already installed package by running \fBopam install <pkg>\fR. This flag can also be set using the \fB$OPAMAUTOREMOVE\fR configuration variable.
+Remove all the packages which have not been explicitly installed and which are not necessary anymore. It is possible to enforce keeping an already installed package by running \fBopam install <pkg>\fR. This flag can also be set using the \fB$OPAMAUTOREMOVE\fR configuration variable.
 .TP 4
 \fB\-b\fR, \fB\-\-keep\-build\-dir\fR
 Keep the build directory. This is equivalent to setting \fB$OPAMKEEPBUILDIR\fR to a non\-empty string.
@@ -38,13 +38,19 @@ Simply call the solver without actually performing any build/install operations.
 Display the external packages associated to the given tags.
 .TP 4
 \fB\-\-fake\fR
-WARNING: This option is fo testing purposes only! Using this option without care is the best way to corrupt your current compiler environement. When using this option OPAM will run a dry\-run of the solver and then fake the build and install commands
+WARNING: This option is for testing purposes only! Using this option without care is the best way to corrupt your current compiler environment. When using this option OPAM will run a dry\-run of the solver and then fake the build and install commands.
+.TP 4
+\fB\-j\fR \fIJOBS\fR, \fB\-\-jobs\fR=\fIJOBS\fR
+Set the maximal number of concurrent jobs to use. You can also set it using the OPAMJOBS environment variable.
 .TP 4
 \fB\-m\fR \fIMAKE\fR, \fB\-\-make\fR=\fIMAKE\fR
 Use \fIMAKE\fR as the default 'make' command.
 .TP 4
-\fB\-n\fR, \fB\-\-no\-checksums\fR
+\fB\-\-no\-checksums\fR
 Do not verify the checksum of downloaded archives.This is equivalent to setting \fB$OPAMNOCHECKSUMS\fR to a non\-empty string.
+.TP 4
+\fB\-\-output\-json\fR=\fIFILENAME\fR
+Save the result output of an OPAM run in a computer\-readable file
 .TP 4
 \fB\-t\fR, \fB\-\-build\-test\fR
 Build and \fBrun\fR the package unit\-tests. This is equivalent to setting \fB$OPAMBUILDTEST\fR to a non\-empty string.

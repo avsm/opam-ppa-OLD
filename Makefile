@@ -1,6 +1,6 @@
 -include Makefile.config
 
-LOCAL_OCPBUILD=./ocp-build/ocp-build
+LOCAL_OCPBUILD=./ocp-build/ocp-build -no-use-ocamlfind
 OCPBUILD ?= $(LOCAL_OCPBUILD)
 SRC_EXT=src_ext
 TARGETS = opam opam-mk-repo
@@ -14,7 +14,7 @@ all: $(LOCAL_OCPBUILD) META
 scan: $(LOCAL_OCPBUILD)
 	$(OCPBUILD) -scan
 sanitize: $(LOCAL_OCPBUILD)
-	$(OCPBUILD) -sanitize
+	$(OCPBUILD)
 byte: $(LOCAL_OCPBUILD)
 	$(OCPBUILD) -byte
 opt: $(LOCAL_OCPBUILD)
@@ -22,17 +22,17 @@ opt: $(LOCAL_OCPBUILD)
 
 OCAMLBUILD_FLAGS=\
 	-Is src/core,src/client,src/repositories,src/solver,src/scripts \
-	-use-ocamlfind -pkgs re.glob,re.pcre,re.perl,ocamlgraph,cmdliner,cudf,dose3 \
+	-use-ocamlfind -pkgs re.glob,re.pcre,re.str,re.perl,ocamlgraph,cmdliner,cudf,dose3 \
 	-classic-display
 with-ocamlbuild: autogen
 	@for i in core repositories solver client; do\
 	  echo Compiling opam-$$i;\
-	  find src/$$i -type f -name \*.ml -or -name \*.mll -or -name \*.mly\
+	  find src/$$i -type f \( -not -name opamMain.ml \) \
+	                       \( -name \*.ml -or -name \*.mly -or -name \*.mll \)\
 	    | xargs -n 1 basename\
 	    | awk -F. "{ print (toupper(substr(\$$1,0,1)) substr(\$$1,2)) }"\
 	    > src/$$i/opam-$$i.mllib &&\
-	  ocamlbuild $(OCAMLBUILD_FLAGS) opam-$$i.cma opam-$$i.cmxa &&\
-	  rm -f src/$$i/opam-$$i.mllib;\
+	  ocamlbuild $(OCAMLBUILD_FLAGS) opam-$$i.cma opam-$$i.cmxa;\
 	done;\
 	ocamlbuild $(OCAMLBUILD_FLAGS) opamMain.native opam_mk_repo.native opam_repo_check.native &&\
 	ln -sf _build/src/client/opamMain.native opam &&\
@@ -49,7 +49,7 @@ prepare: depends.ocp.in
 autogen: src/core/opamGitVersion.ml src/core/opamScript.ml src/core/opamVersion.ml
 
 compile: $(LOCAL_OCPBUILD) autogen
-	$(OCPBUILD) -init -scan -sanitize $(TARGET)
+	$(OCPBUILD) -init -scan $(TARGET)
 
 clone: src/core/opamVersion.ml
 	$(MAKE) -C $(SRC_EXT)
@@ -67,6 +67,7 @@ distclean: clean
 	$(MAKE) -C $(SRC_EXT) distclean
 	rm -f META Makefile.config config.log config.status
 	rm -f src/core/opamVersion.ml src/core/opamGitVersion.ml src/core/opamScript.ml
+	rm -f doc/man-ext/opam-mk-repo.md doc/man-ext/opam-check.md
 
 .PHONY: tests
 
@@ -102,8 +103,9 @@ src/core/opamVersion.ml:
 	@echo
 	@exit 1
 
-src/core/opamGitVersion.ml: src/core/opamVersion.ml
-	./shell/get-git-id.sh > $@
+.PHONY: src/core/opamGitVersion.ml
+src/core/opamGitVersion.ml:
+	ocaml shell/get-git-id.ml $@
 
 src/core/opamScript.ml: shell/ src/core/opamVersion.ml
 	ocaml shell/crunch.ml "complete"     < shell/opam_completion.sh > $@

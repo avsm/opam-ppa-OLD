@@ -1,17 +1,18 @@
-(***********************************************************************)
-(*                                                                     *)
-(*    Copyright 2012 OCamlPro                                          *)
-(*    Copyright 2012 INRIA                                             *)
-(*                                                                     *)
-(*  All rights reserved.  This file is distributed under the terms of  *)
-(*  the GNU Public License version 3.0.                                *)
-(*                                                                     *)
-(*  OPAM is distributed in the hope that it will be useful,            *)
-(*  but WITHOUT ANY WARRANTY; without even the implied warranty of     *)
-(*  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the      *)
-(*  GNU General Public License for more details.                       *)
-(*                                                                     *)
-(***********************************************************************)
+(**************************************************************************)
+(*                                                                        *)
+(*    Copyright 2012-2013 OCamlPro                                        *)
+(*    Copyright 2012 INRIA                                                *)
+(*                                                                        *)
+(*  All rights reserved.This file is distributed under the terms of the   *)
+(*  GNU Lesser General Public License version 3.0 with linking            *)
+(*  exception.                                                            *)
+(*                                                                        *)
+(*  OPAM is distributed in the hope that it will be useful, but WITHOUT   *)
+(*  ANY WARRANTY; without even the implied warranty of MERCHANTABILITY    *)
+(*  or FITNESS FOR A PARTICULAR PURPOSE.See the GNU General Public        *)
+(*  License for more details.                                             *)
+(*                                                                        *)
+(**************************************************************************)
 
 module Base = OpamMisc.Base
 
@@ -22,7 +23,7 @@ module Dir = struct
   include OpamMisc.Base
 
   let of_string dirname =
-    if (String.length dirname > 1 && dirname.[0] = '~') then
+    if (String.length dirname >= 1 && dirname.[0] = '~') then
       let home = OpamMisc.getenv "HOME" in
       match dirname with
       | "~" -> home
@@ -58,6 +59,11 @@ let cwd () =
 let mkdir dirname =
   OpamSystem.mkdir (Dir.to_string dirname)
 
+let cleandir dirname =
+  log "cleandir %s" (Dir.to_string dirname);
+  OpamSystem.remove (Dir.to_string dirname);
+  mkdir dirname
+
 let rec_dirs d =
   let fs = OpamSystem.rec_dirs (Dir.to_string d) in
   List.rev (List.rev_map Dir.of_string fs)
@@ -72,12 +78,12 @@ let in_dir dirname fn =
   else
     OpamSystem.internal_error "Cannot CD to %s: the directory does not exist!" dirname
 
-let exec dirname ?env ?name cmds =
+let exec dirname ?env ?name ?metadata cmds =
   let env = match env with
     | None   -> None
     | Some l -> Some (Array.of_list (List.rev_map (fun (k,v) -> k^"="^v) l)) in
   in_dir dirname
-    (fun () -> OpamSystem.commands ?env ?name cmds)
+    (fun () -> OpamSystem.commands ?env ?name ?metadata cmds)
 
 let move_dir ~src ~dst =
   OpamSystem.command [ "mv"; Dir.to_string src; Dir.to_string dst ]
@@ -87,40 +93,17 @@ let exists_dir dirname =
 
 let copy_dir ~src ~dst =
   if exists_dir dst then
-    OpamSystem.internal_error "Cannot create %s as the directory already exists." (Dir.to_string dst);
+    OpamSystem.internal_error
+      "Cannot create %s as the directory already exists." (Dir.to_string dst);
   OpamSystem.command [ "cp"; "-pPR"; Dir.to_string src; Dir.to_string dst ]
 
-let copy_unique_dir ~src ~dst =
-  with_tmp_dir (fun tmp ->
-    OpamSystem.command [ "rsync"; "-a"; Filename.concat (Dir.to_string src) "/"; Dir.to_string tmp ];
-    match sub_dirs tmp with
-    | [f] ->
-      rmdir dst;
-      move_dir ~src:f ~dst
-    | [] ->
-      OpamSystem.internal_error
-        "Error while copying %s to %s: empty directory."
-        (Dir.to_string src) (Dir.to_string dst)
-    | l ->
-      let l = List.map Filename.basename l in
-      OpamSystem.internal_error
-        "Error while copying %s to %s: too many subdirectories (%s)"
-        (Dir.to_string src) (Dir.to_string dst) (String.concat ", " l)
-  )
-
 let link_dir ~src ~dst =
-  rmdir dst;
-  let tmp_dst = Filename.concat (Filename.basename src) (Filename.basename dst) in
-  let base = Filename.dirname dst in
-  mkdir base;
-  if dst = tmp_dst then
-    in_dir base (fun () -> OpamSystem.command [ "ln"; "-s"; src])
-  else
-    in_dir base (fun () ->
-      OpamSystem.commands [
-        ["ln"; "-s"; src];
-        ["mv"; (Filename.basename src); (Filename.basename dst) ];
-      ])
+  if exists_dir dst then
+    OpamSystem.internal_error "Cannot link: %s already exists." (Dir.to_string dst)
+  else (
+    mkdir (Filename.dirname dst);
+    OpamSystem.link (Dir.to_string src) (Dir.to_string dst)
+  )
 
 let basename_dir dirname =
   Base.of_string (Filename.basename (Dir.to_string dirname))
@@ -149,7 +132,7 @@ let of_basename basename =
   let dirname = Dir.of_string "." in
   { dirname; basename }
 
-let raw_file str =
+let raw str =
   let dirname = raw_dir (Filename.dirname str) in
   let basename = Base.of_string (Filename.basename str) in
   create dirname basename
@@ -207,16 +190,27 @@ let rec_files d =
   List.rev (List.rev_map of_string fs)
 
 let copy ~src ~dst =
-  OpamSystem.copy (to_string src) (to_string dst)
+  if src <> dst then OpamSystem.copy (to_string src) (to_string dst)
 
 let move ~src ~dst =
-  OpamSystem.command [ "mv"; to_string src; to_string dst ]
+  if src <> dst then OpamSystem.command [ "mv"; to_string src; to_string dst ]
 
 let link ~src ~dst =
-(*  if Lazy.force OpamGlobals.os = OpamGlobals.Win32 then
-    copy src dst
-  else *)
-    OpamSystem.link (to_string src) (to_string dst)
+  if src <> dst then OpamSystem.link (to_string src) (to_string dst)
+
+let readlink src =
+  if exists src then
+    try of_string (Unix.readlink (to_string src))
+    with _ -> src
+  else
+    OpamSystem.internal_error "%s does not exist." (to_string src)
+
+let is_symlink src =
+  try
+    let s = Unix.lstat (to_string src) in
+    s.Unix.st_kind = Unix.S_LNK
+  with _ ->
+    OpamSystem.internal_error "%s does not exist." (to_string src)
 
 let process_in fn src dst =
   let src_s = to_string src in
@@ -236,6 +230,9 @@ let extract_in filename dirname =
 let starts_with dirname filename =
   OpamMisc.starts_with ~prefix:(Dir.to_string dirname) (to_string filename)
 
+let ends_with suffix filename =
+  OpamMisc.ends_with ~suffix (to_string filename)
+
 let remove_prefix prefix filename =
   let prefix =
     let str = Dir.to_string prefix in
@@ -248,10 +245,10 @@ let remove_suffix suffix filename =
   let filename = to_string filename in
   OpamMisc.remove_suffix ~suffix filename
 
-
 let download ~overwrite filename dirname =
   mkdir dirname;
-  let file = OpamSystem.download ~overwrite ~filename:(to_string filename) ~dirname:(Dir.to_string dirname) in
+  let file = OpamSystem.download ~overwrite
+      ~filename:(to_string filename) ~dirname:(Dir.to_string dirname) in
   of_string file
 
 let download_iter ~overwrite filenames dirname =
@@ -290,12 +287,9 @@ let prettify_string s =
       Some (Filename.concat short suffix)
     else
       None in
-  match aux ~short:"<root>" ~prefix:!OpamGlobals.root_dir with
+  match aux ~short:"~" ~prefix:(OpamMisc.getenv "HOME") with
   | Some p -> p
-  | None   ->
-    match aux ~short:"~" ~prefix:(OpamMisc.getenv "HOME") with
-    | Some p -> p
-    | None   -> s
+  | None   -> s
 
 let prettify_dir d =
   prettify_string (Dir.to_string d)
@@ -322,7 +316,7 @@ module OP = struct
     let b = Filename.basename s2 in
     if d <> "." then
       create (d1 / d) (Base.of_string b)
-  else
+    else
       create d1 (Base.of_string s2)
 
 end
@@ -353,8 +347,11 @@ module Attribute = struct
   let of_string s =
     match OpamMisc.split s ' ' with
     | [base; md5]      -> { base=Base.of_string base; md5; perm=None }
-    | [base;md5; perm] -> { base=Base.of_string base; md5; perm=Some (int_of_string perm) }
-    | k                -> OpamSystem.internal_error "remote_file: '%s' is not a valid line." (String.concat " " k)
+    | [base;md5; perm] -> { base=Base.of_string base; md5;
+                            perm=Some (int_of_string perm) }
+    | k                -> OpamSystem.internal_error
+                            "remote_file: '%s' is not a valid line."
+                            (String.concat " " k)
 
   module O = struct
     type tmp = t

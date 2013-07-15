@@ -1,17 +1,18 @@
-(***********************************************************************)
-(*                                                                     *)
-(*    Copyright 2012 OCamlPro                                          *)
-(*    Copyright 2012 INRIA                                             *)
-(*                                                                     *)
-(*  All rights reserved.  This file is distributed under the terms of  *)
-(*  the GNU Public License version 3.0.                                *)
-(*                                                                     *)
-(*  OPAM is distributed in the hope that it will be useful,            *)
-(*  but WITHOUT ANY WARRANTY; without even the implied warranty of     *)
-(*  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the      *)
-(*  GNU General Public License for more details.                       *)
-(*                                                                     *)
-(***********************************************************************)
+(**************************************************************************)
+(*                                                                        *)
+(*    Copyright 2012-2013 OCamlPro                                        *)
+(*    Copyright 2012 INRIA                                                *)
+(*                                                                        *)
+(*  All rights reserved.This file is distributed under the terms of the   *)
+(*  GNU Lesser General Public License version 3.0 with linking            *)
+(*  exception.                                                            *)
+(*                                                                        *)
+(*  OPAM is distributed in the hope that it will be useful, but WITHOUT   *)
+(*  ANY WARRANTY; without even the implied warranty of MERCHANTABILITY    *)
+(*  or FITNESS FOR A PARTICULAR PURPOSE.See the GNU General Public        *)
+(*  License for more details.                                             *)
+(*                                                                        *)
+(**************************************************************************)
 
 module type SET = sig
   include Set.S
@@ -63,6 +64,8 @@ let rec pretty_list = function
   | [a;b] -> Printf.sprintf "%s and %s" a b
   | h::t  -> Printf.sprintf "%s, %s" h (pretty_list t)
 
+let max_print = 100
+
 module Set = struct
 
   module Make (O : OrderedType) = struct
@@ -73,16 +76,19 @@ module Set = struct
 
     let choose_one s =
       match elements s with
-        | [x] -> x
-        | [] -> raise Not_found
-        | _  -> invalid_arg "choose_one"
+      | [x] -> x
+      | [] -> raise Not_found
+      | _  -> invalid_arg "choose_one"
 
     let of_list l =
       List.fold_left (fun set e -> add e set) empty l
 
     let to_string s =
-      let l = S.fold (fun nv l -> O.to_string nv :: l) s [] in
-      string_of_list (fun x -> x) (List.rev l)
+      if S.cardinal s > max_print then
+	Printf.sprintf "%d elements" (S.cardinal s)
+      else
+	let l = S.fold (fun nv l -> O.to_string nv :: l) s [] in
+	string_of_list (fun x -> x) (List.rev l)
 
     let map f t =
       S.fold (fun e set -> S.add (f e) set) t S.empty
@@ -117,9 +123,12 @@ module Map = struct
       ) m1 m2
 
     let to_string string_of_value m =
-      let s (k,v) = Printf.sprintf "%s:%s" (O.to_string k) (string_of_value v) in
-      let l = fold (fun k v l -> s (k,v)::l) m [] in
-      string_of_list (fun x -> x) l
+      if M.cardinal m > 100 then
+	Printf.sprintf "%d elements" (M.cardinal m)
+      else
+	let s (k,v) = Printf.sprintf "%s:%s" (O.to_string k) (string_of_value v) in
+	let l = fold (fun k v l -> s (k,v)::l) m [] in
+	string_of_list (fun x -> x) l
 
     let of_list l =
       List.fold_left (fun map (k,v) -> add k v map) empty l
@@ -145,9 +154,9 @@ let filter_map f l =
   let rec loop accu = function
     | []     -> List.rev accu
     | h :: t ->
-        match f h with
-        | None   -> loop accu t
-        | Some x -> loop (x::accu) t in
+      match f h with
+      | None   -> loop accu t
+      | Some x -> loop (x::accu) t in
   loop [] l
 
 module OInt = struct
@@ -251,20 +260,23 @@ let contains s c =
   with Not_found -> false
 
 let split s c =
-  Re_pcre.split ~rex:(Re_perl.compile (Re.char c)) s
+  Re_str.split (Re_str.regexp (Printf.sprintf "[%c]" c)) s
+
+let split_delim s c =
+  Re_str.split_delim (Re_str.regexp (Printf.sprintf "[%c]" c)) s
 
 (* Remove from a ':' separated list of string the one with the given prefix *)
 let reset_env_value ~prefix v =
-  let v = split v ':' in
+  let v = split_delim v ':' in
   List.filter (fun v -> not (starts_with ~prefix v)) v
 
 (* if rsync -arv return 4 lines, this means that no files have changed *)
 let rsync_trim = function
   | [] -> []
   | _ :: t ->
-      match List.rev t with
-      | _ :: _ :: _ :: l -> List.filter ((<>) "./") l
-      | _ -> []
+    match List.rev t with
+    | _ :: _ :: _ :: l -> List.filter ((<>) "./") l
+    | _ -> []
 
 let exact_match re s =
   try
@@ -323,6 +335,10 @@ let git_of_string a =
   | None       -> a, None
   | Some (a,c) -> a, Some c
 
+(* maybe paths processing will become different for git and hg, so here is
+   a separate function. *)
+let hg_of_string = git_of_string
+
 let pretty_backtrace () =
   match Printexc.get_backtrace () with
   | "" -> ""
@@ -346,15 +362,15 @@ let get_terminal_columns () =
     with_process_in "tput cols"
       (fun ic -> int_of_string (input_line ic))
   with _ -> try (* GNU stty *)
-    with_process_in "stty size"
-      (fun ic ->
-        match split (input_line ic) ' ' with
-        | [_ ; v] -> int_of_string v
-        | _ -> failwith "stty")
-  with _ -> try (* shell envvar *)
-    int_of_string (getenv "COLUMNS")
-  with _ ->
-    default_columns
+      with_process_in "stty size"
+        (fun ic ->
+          match split (input_line ic) ' ' with
+          | [_ ; v] -> int_of_string v
+          | _ -> failwith "stty")
+    with _ -> try (* shell envvar *)
+        int_of_string (getenv "COLUMNS")
+      with _ ->
+        default_columns
 
 let terminal_columns =
   let v = Lazy.lazy_from_fun get_terminal_columns in
@@ -370,12 +386,30 @@ let uname_s () =
   with _ ->
     None
 
+let shell_of_string = function
+  | "tcsh"
+  | "csh"  -> `csh
+  | "zsh"  -> `zsh
+  | "bash" -> `bash
+  | "fish" -> `fish
+  | _      -> `sh
+
 let guess_shell_compat () =
-  try
-    match Filename.basename (getenv "SHELL") with
-    | "tcsh"
-    | "csh" -> `csh
-    | "zsh" -> `zsh
-    | _     -> `sh
-  with _ ->
-    `sh
+  try shell_of_string (Filename.basename (getenv "SHELL"))
+  with _ -> `sh
+
+let guess_dot_profile shell =
+  let home f =
+    try Filename.concat (getenv "HOME") f
+    with _ -> f in
+  match shell with
+  | `fish -> List.fold_left Filename.concat (home ".config") ["fish"; "config.fish"]
+  | `zsh  -> home ".zshrc"
+  | `bash ->
+    let bash_profile = home ".bash_profile" in
+    let bashrc = home ".bashrc" in
+    if Sys.file_exists bash_profile then
+      bash_profile
+    else
+      bashrc
+  | _     -> home ".profile"
