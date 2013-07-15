@@ -1,17 +1,18 @@
-(***********************************************************************)
-(*                                                                     *)
-(*    Copyright 2012 OCamlPro                                          *)
-(*    Copyright 2012 INRIA                                             *)
-(*                                                                     *)
-(*  All rights reserved.  This file is distributed under the terms of  *)
-(*  the GNU Public License version 3.0.                                *)
-(*                                                                     *)
-(*  OPAM is distributed in the hope that it will be useful,            *)
-(*  but WITHOUT ANY WARRANTY; without even the implied warranty of     *)
-(*  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the      *)
-(*  GNU General Public License for more details.                       *)
-(*                                                                     *)
-(***********************************************************************)
+(**************************************************************************)
+(*                                                                        *)
+(*    Copyright 2012-2013 OCamlPro                                        *)
+(*    Copyright 2012 INRIA                                                *)
+(*                                                                        *)
+(*  All rights reserved.This file is distributed under the terms of the   *)
+(*  GNU Lesser General Public License version 3.0 with linking            *)
+(*  exception.                                                            *)
+(*                                                                        *)
+(*  OPAM is distributed in the hope that it will be useful, but WITHOUT   *)
+(*  ANY WARRANTY; without even the implied warranty of MERCHANTABILITY    *)
+(*  or FITNESS FOR A PARTICULAR PURPOSE.See the GNU General Public        *)
+(*  License for more details.                                             *)
+(*                                                                        *)
+(**************************************************************************)
 
 open OpamMisc.OP
 
@@ -60,9 +61,10 @@ type repository_root = dirname
 
 type 'a repository_name_map = 'a OpamRepositoryName.Map.t
 
-type repository_kind = [`http|`local|`git|`darcs]
+type repository_kind = [`http|`local|`git|`darcs|`hg]
 
 type repository = {
+  repo_root    : repository_root;
   repo_name    : repository_name;
   repo_kind    : repository_kind;
   repo_address : address;
@@ -74,6 +76,7 @@ let string_of_repository_kind = function
   | `local -> "local"
   | `git   -> "git"
   | `darcs -> "darcs"
+  | `hg -> "hg"
 
 let repository_kind_of_string = function
   | "wget"
@@ -83,6 +86,7 @@ let repository_kind_of_string = function
   | "local" -> `local
   | "git"   -> `git
   | "darcs" -> `darcs
+  | "hg" -> `hg
   | s -> OpamGlobals.error_and_exit "%s is not a valid repository kind." s
 
 type variable = OpamVariable.t
@@ -134,7 +138,14 @@ type ppflag =
   | Camlp4 of string list
   | Cmd of string list
 
-type shell = [`csh|`zsh|`sh]
+type shell = [`fish|`csh|`zsh|`sh|`bash]
+
+let string_of_shell = function
+  | `fish -> "fish"
+  | `csh  -> "csh"
+  | `zsh  -> "zsh"
+  | `sh   -> "sh"
+  | `bash -> "bash"
 
 type global_config = {
   complete   : bool;
@@ -174,26 +185,32 @@ type pin_option =
   | Local of dirname
   | Git of address
   | Darcs of address
+  | Hg of address
   | Unpin
 
-type pin_kind = [`version|`git|`darcs|`local|`unpin]
+type pin_kind = [`version|`git|`darcs|`hg|`local|`unpin]
 
-let mk_git str =
-  let path, commit = OpamMisc.git_of_string str in
+let mk_hashsep_vcs split construct str =
+  let path, commit = split str in
   if Sys.file_exists path then
     let real_path = OpamFilename.Dir.of_string path in
     match commit with
-    | None   -> Git real_path
+    | None   -> construct real_path
     | Some c ->
       let path = Printf.sprintf "%s#%s" (OpamFilename.Dir.to_string real_path) c in
-      Git (OpamFilename.Dir.of_string path)
+      construct (OpamFilename.Dir.of_string path)
   else
-    Git (OpamFilename.raw_dir str)
+    construct (OpamFilename.raw_dir str)
+
+let mk_git str = mk_hashsep_vcs OpamMisc.git_of_string (fun x -> Git x) str
+
+let mk_hg str = mk_hashsep_vcs OpamMisc.hg_of_string (fun x -> Hg x) str
 
 let pin_option_of_string ?kind s =
   match kind with
   | Some `version -> Version (OpamPackage.Version.of_string s)
   | Some `git     -> mk_git s
+  | Some `hg      -> mk_hg s
   | Some `darcs   ->
     if Sys.file_exists s then
       Darcs (OpamFilename.Dir.of_string s)
@@ -215,6 +232,7 @@ let string_of_pin_kind = function
   | `version -> "version"
   | `git     -> "git"
   | `darcs   -> "darcs"
+  | `hg      -> "hg"
   | `local   -> "local"
   | `unpin   -> "unpin"
 
@@ -222,6 +240,7 @@ let pin_kind_of_string = function
   | "version" -> `version
   | "git"     -> `git
   | "darcs"   -> `darcs
+  | "hg"      -> `hg
   | "rsync"
   | "local"   -> `local
   | "unpin"   -> `unpin
@@ -236,6 +255,7 @@ let path_of_pin_option = function
   | Version v -> OpamPackage.Version.to_string v
   | Git p
   | Darcs p
+  | Hg p
   | Local p   -> OpamFilename.Dir.to_string p
   | Unpin     -> "none"
 
@@ -243,6 +263,7 @@ let kind_of_pin_option = function
   | Version _ -> `version
   | Git _     -> `git
   | Darcs _   -> `darcs
+  | Hg _      -> `hg
   | Local _   -> `local
   | Unpin     -> `unpin
 
@@ -260,6 +281,14 @@ type variable_contents = OpamVariable.variable_contents =
 type symbol =
   | Eq | Neq | Le | Ge | Lt | Gt
 
+let string_of_symbol = function
+  | Eq  -> "="
+  | Neq -> "!="
+  | Ge  -> ">="
+  | Le  -> "<="
+  | Gt  -> ">"
+  | Lt  -> "<"
+
 type filter =
   | FBool of bool
   | FString of string
@@ -267,6 +296,18 @@ type filter =
   | FOp of filter * symbol * filter
   | FAnd of filter * filter
   | FOr of filter * filter
+  | FNot of filter
+
+let rec string_of_filter = function
+  | FBool b    -> string_of_bool b
+  | FString s  -> Printf.sprintf "%S" s
+  | FIdent i   -> i
+  | FOp(e,s,f) ->
+    Printf.sprintf "%s %s %s"
+      (string_of_filter e) (string_of_symbol s) (string_of_filter f)
+  | FAnd (e,f) -> Printf.sprintf "%s & %s" (string_of_filter e) (string_of_filter f)
+  | FOr (e,f)  -> Printf.sprintf "%s | %s" (string_of_filter e) (string_of_filter f)
+  | FNot e     -> Printf.sprintf "!%s" (string_of_filter e)
 
 type simple_arg =
   | CString of string
@@ -382,10 +423,11 @@ module MakeActionGraph (Pkg: PKG) = struct
   module Components = Graph.Components.Make(PG)
   module O = Graph.Oper.I (PG)
   module Parallel = OpamParallel.Make(struct
-      include PG
-      include Topological
-      include Traverse
-      include Components
+    let string_of_vertex v = Pkg.to_string (action_contents v)
+    include PG
+    include Topological
+    include Traverse
+    include Components
     end)
   include PG
   include O
@@ -485,3 +527,21 @@ type lock =
   | Switch_lock of (unit -> unit)
 
 type tags = OpamMisc.StringSet.t OpamMisc.StringSetMap.t
+
+type compiler_repository_state = {
+  comp_repo     : repository;
+  comp_file     : filename;
+  comp_descr    : filename option;
+  comp_checksums: string list;
+}
+
+type package_repository_state = {
+  pkg_repo     : repository;
+  pkg_opam     : filename;
+  pkg_descr    : filename option;
+  pkg_archive  : filename option;
+  pkg_url      : filename option;
+  pkg_files    : dirname option;
+  pkg_metadata : string list;
+  pkg_contents : string list;
+}

@@ -1,17 +1,18 @@
-(***********************************************************************)
-(*                                                                     *)
-(*    Copyright 2012 OCamlPro                                          *)
-(*    Copyright 2012 INRIA                                             *)
-(*                                                                     *)
-(*  All rights reserved.  This file is distributed under the terms of  *)
-(*  the GNU Public License version 3.0.                                *)
-(*                                                                     *)
-(*  OPAM is distributed in the hope that it will be useful,            *)
-(*  but WITHOUT ANY WARRANTY; without even the implied warranty of     *)
-(*  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the      *)
-(*  GNU General Public License for more details.                       *)
-(*                                                                     *)
-(***********************************************************************)
+(**************************************************************************)
+(*                                                                        *)
+(*    Copyright 2012-2013 OCamlPro                                        *)
+(*    Copyright 2012 INRIA                                                *)
+(*                                                                        *)
+(*  All rights reserved.This file is distributed under the terms of the   *)
+(*  GNU Lesser General Public License version 3.0 with linking            *)
+(*  exception.                                                            *)
+(*                                                                        *)
+(*  OPAM is distributed in the hope that it will be useful, but WITHOUT   *)
+(*  ANY WARRANTY; without even the implied warranty of MERCHANTABILITY    *)
+(*  or FITNESS FOR A PARTICULAR PURPOSE.See the GNU General Public        *)
+(*  License for more details.                                             *)
+(*                                                                        *)
+(**************************************************************************)
 
 (* Utility helper to check if a given set of packages is installed *)
 
@@ -19,10 +20,10 @@ let usage = "opam-check [--root root] [-l label] <package>+"
 
 let label = ref ""
 let spec = Arg.align [
-  ("--root", Arg.Set_string OpamGlobals.root_dir, " Set opam path");
-  ("-l"    , Arg.Set_string label            , " Set a test label");
-  ("--version", Arg.Unit OpamVersion.message , " Display version information");
-]
+    ("--root", Arg.Set_string OpamGlobals.root_dir, " Set opam path");
+    ("-l"    , Arg.Set_string label            , " Set a test label");
+    ("--version", Arg.Unit OpamVersion.message , " Display version information");
+  ]
 
 let packages = ref []
 let ano x = packages := x :: !packages

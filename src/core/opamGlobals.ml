@@ -1,31 +1,32 @@
-(***********************************************************************)
-(*                                                                     *)
-(*    Copyright 2012 OCamlPro                                          *)
-(*    Copyright 2012 INRIA                                             *)
-(*                                                                     *)
-(*  All rights reserved.  This file is distributed under the terms of  *)
-(*  the GNU Public License version 3.0.                                *)
-(*                                                                     *)
-(*  OPAM is distributed in the hope that it will be useful,            *)
-(*  but WITHOUT ANY WARRANTY; without even the implied warranty of     *)
-(*  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the      *)
-(*  GNU General Public License for more details.                       *)
-(*                                                                     *)
-(***********************************************************************)
+(**************************************************************************)
+(*                                                                        *)
+(*    Copyright 2012-2013 OCamlPro                                        *)
+(*    Copyright 2012 INRIA                                                *)
+(*                                                                        *)
+(*  All rights reserved.This file is distributed under the terms of the   *)
+(*  GNU Lesser General Public License version 3.0 with linking            *)
+(*  exception.                                                            *)
+(*                                                                        *)
+(*  OPAM is distributed in the hope that it will be useful, but WITHOUT   *)
+(*  ANY WARRANTY; without even the implied warranty of MERCHANTABILITY    *)
+(*  or FITNESS FOR A PARTICULAR PURPOSE.See the GNU General Public        *)
+(*  License for more details.                                             *)
+(*                                                                        *)
+(**************************************************************************)
 
 (* Convention:
    all the global OPAM variables can be set using environment variables
    using OPAM<variable> *)
 
 let check var = ref (
-  try OpamMisc.getenv ("OPAM"^var) <> ""
-  with Not_found -> false
-)
+    try OpamMisc.getenv ("OPAM"^var) <> ""
+    with Not_found -> false
+  )
 
 let debug = ref (
-  try int_of_string (OpamMisc.getenv "OPAMDEBUG") >= 2
-  with _ -> false
-)
+    try int_of_string (OpamMisc.getenv "OPAMDEBUG") >= 2
+    with _ -> false
+  )
 
 let verbose =
   try ref (int_of_string (OpamMisc.getenv "OPAMDEBUG") >= 1)
@@ -42,6 +43,11 @@ let fake             = check "FAKE"
 let print_stats      = check "STATS"
 let utf8_msgs        = check "UTF8MSGS"
 let autoremove       = check "AUTOREMOVE"
+
+let jobs = ref (
+    try Some (int_of_string (OpamMisc.getenv "OPAMJOBS"))
+    with _ -> None
+  )
 
 let download_retry =
   try max 1 (int_of_string (OpamMisc.getenv "OPAMRETRY"))
@@ -61,7 +67,15 @@ let default_package = "conf-ocaml"
 
 let system = "system"
 
-let switch : string option ref = ref None
+let json_output: string option ref = ref None
+
+let switch: [`Env of string
+            | `Command_line of string
+            | `Not_set ] ref
+  = ref (
+    try `Env (OpamMisc.getenv "OPAMSWITCH")
+    with _ -> `Not_set
+  )
 
 let opam_version = "1"
 
@@ -75,14 +89,24 @@ let default_opam_dir =
   Filename.concat home ".opam"
 
 let root_dir = ref (
-  try OpamMisc.getenv "OPAMROOT"
-  with _ -> default_opam_dir
-)
+    try OpamMisc.getenv "OPAMROOT"
+    with _ -> default_opam_dir
+  )
+
+let timestamp () =
+  let time = Sys.time () in
+  let tm = Unix.gmtime time in
+  let msec = time -. (floor time) in
+  Printf.sprintf "%.2d:%.2d.%.3d"
+    (tm.Unix.tm_hour * 60 + tm.Unix.tm_min)
+    tm.Unix.tm_sec
+    (int_of_float (1000.0 *. msec))
 
 let log section fmt =
   Printf.ksprintf (fun str ->
     if !debug then
-      Printf.eprintf "[%d] %-20s %s\n%!" (Unix.getpid ()) section str
+      Printf.eprintf "%s  %06d  %-25s  %s\n"
+        (timestamp ()) (Unix.getpid ()) section str
   ) fmt
 
 let error fmt =
@@ -103,9 +127,14 @@ let error_and_exit fmt =
     raise (Exit 66)
   ) fmt
 
+let display_messages = ref true
+
 let msg fmt =
   Printf.ksprintf (fun str ->
-    Printf.printf "%s%!" str
+    flush stderr;
+    if !display_messages then (
+      Printf.printf "%s%!" str
+    )
   ) fmt
 
 type os =
@@ -146,7 +175,7 @@ let os () =
 let string_of_os = function
   | Darwin    -> "darwin"
   | Linux     -> "linux"
-  | FreeBSD   -> "freebs"
+  | FreeBSD   -> "freebsd"
   | OpenBSD   -> "openbsd"
   | NetBSD    -> "netbsd"
   | DragonFly -> "dragonfly"
@@ -159,13 +188,13 @@ let os_string () =
   string_of_os (os ())
 
 let makecmd = ref (fun () ->
-  match os () with
-  | FreeBSD
-  | OpenBSD
-  | NetBSD
-  | DragonFly -> "gmake"
-  | _ -> "make"
-)
+    match os () with
+    | FreeBSD
+    | OpenBSD
+    | NetBSD
+    | DragonFly -> "gmake"
+    | _ -> "make"
+  )
 
 let log_limit = 10
 let log_line_limit = 5 * 80

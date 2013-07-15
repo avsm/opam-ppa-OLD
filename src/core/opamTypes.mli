@@ -1,17 +1,18 @@
-(***********************************************************************)
-(*                                                                     *)
-(*    Copyright 2012 OCamlPro                                          *)
-(*    Copyright 2012 INRIA                                             *)
-(*                                                                     *)
-(*  All rights reserved.  This file is distributed under the terms of  *)
-(*  the GNU Public License version 3.0.                                *)
-(*                                                                     *)
-(*  OPAM is distributed in the hope that it will be useful,            *)
-(*  but WITHOUT ANY WARRANTY; without even the implied warranty of     *)
-(*  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the      *)
-(*  GNU General Public License for more details.                       *)
-(*                                                                     *)
-(***********************************************************************)
+(**************************************************************************)
+(*                                                                        *)
+(*    Copyright 2012-2013 OCamlPro                                        *)
+(*    Copyright 2012 INRIA                                                *)
+(*                                                                        *)
+(*  All rights reserved.This file is distributed under the terms of the   *)
+(*  GNU Lesser General Public License version 3.0 with linking            *)
+(*  exception.                                                            *)
+(*                                                                        *)
+(*  OPAM is distributed in the hope that it will be useful, but WITHOUT   *)
+(*  ANY WARRANTY; without even the implied warranty of MERCHANTABILITY    *)
+(*  or FITNESS FOR A PARTICULAR PURPOSE.See the GNU General Public        *)
+(*  License for more details.                                             *)
+(*                                                                        *)
+(**************************************************************************)
 
 (** Common types used by other modules *)
 
@@ -148,13 +149,13 @@ type repository_name = OpamRepositoryName.t
 type 'a repository_name_map = 'a OpamRepositoryName.Map.t
 
 (** Repository kind *)
-type repository_kind = [`http|`local|`git|`darcs]
+type repository_kind = [`http|`local|`git|`darcs|`hg]
 
 (** Pretty-print repository kinds. *)
-val string_of_repository_kind: [`http|`local|`git|`darcs] -> string
+val string_of_repository_kind: [`http|`local|`git|`darcs|`hg] -> string
 
 (** Parser of repository kinds. Raise an error if the kind is not valid. *)
-val repository_kind_of_string: string -> [`http|`local|`git|`darcs]
+val repository_kind_of_string: string -> [`http|`local|`git|`darcs|`hg]
 
 (** Repository address *)
 type address = dirname
@@ -164,6 +165,7 @@ type repository_root = dirname
 
 (** Repositories *)
 type repository = {
+  repo_root    : repository_root;
   repo_name    : repository_name;
   repo_kind    : repository_kind;
   repo_address : address;
@@ -190,7 +192,7 @@ type 'a action =
   | To_recompile of 'a
 
 (** The possible causes of an action. *)
- type 'a cause =
+type 'a cause =
   | Use of 'a list
   | Required_by of 'a list
   | Upstream_changes
@@ -314,6 +316,7 @@ type pin_option =
   | Local of dirname
   | Git of address
   | Darcs of address
+  | Hg of address
   | Unpin
 
 (** Pinned packages *)
@@ -326,7 +329,7 @@ type pin = {
 val string_of_pin: pin -> string
 
 (** Pin kind *)
-type pin_kind = [`version|`git|`darcs|`local|`unpin]
+type pin_kind = [`version|`git|`darcs|`hg|`local|`unpin]
 
 (** Pretty-printing of pin kinds. *)
 val pin_kind_of_string: string -> pin_kind
@@ -351,7 +354,10 @@ type config = {
 
 
 (** Shell compatibility modes *)
-type shell = [`csh|`zsh|`sh]
+type shell = [`fish|`csh|`zsh|`sh|`bash]
+
+(** Pretty-print *)
+val string_of_shell: shell -> string
 
 (** Global configuration option *)
 type global_config = {
@@ -372,6 +378,9 @@ type user_config = {
 type symbol =
   | Eq | Neq | Le | Ge | Lt | Gt
 
+(** Pretty print *)
+val string_of_symbol: symbol -> string
+
 (** Filter *)
 type filter =
   | FBool of bool
@@ -380,6 +389,10 @@ type filter =
   | FOp of filter * symbol * filter
   | FAnd of filter * filter
   | FOr of filter * filter
+  | FNot of filter
+
+(** Pretty print *)
+val string_of_filter: filter -> string
 
 (** A command argument *)
 type simple_arg =
@@ -484,3 +497,25 @@ type env_updates = (string * string * string) list
 
 (** Tags *)
 type tags = OpamMisc.StringSet.t OpamMisc.StringSetMap.t
+
+(** {2 Repository state} *)
+
+(** Compiler repository state *)
+type compiler_repository_state = {
+  comp_repo     : repository;
+  comp_file     : filename;
+  comp_descr    : filename option;
+  comp_checksums: string list;
+}
+
+(** Package repository state *)
+type package_repository_state = {
+  pkg_repo     : repository;
+  pkg_opam     : filename;
+  pkg_descr    : filename option;
+  pkg_archive  : filename option;
+  pkg_url      : filename option;
+  pkg_files    : dirname option;
+  pkg_metadata : string list;       (** Checksum of metadata *)
+  pkg_contents : string list;       (** Checksum of contents *)
+}

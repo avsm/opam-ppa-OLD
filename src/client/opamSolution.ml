@@ -1,17 +1,18 @@
-(***********************************************************************)
-(*                                                                     *)
-(*    Copyright 2012 OCamlPro                                          *)
-(*    Copyright 2012 INRIA                                             *)
-(*                                                                     *)
-(*  All rights reserved.  This file is distributed under the terms of  *)
-(*  the GNU Public License version 3.0.                                *)
-(*                                                                     *)
-(*  OPAM is distributed in the hope that it will be useful,            *)
-(*  but WITHOUT ANY WARRANTY; without even the implied warranty of     *)
-(*  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the      *)
-(*  GNU General Public License for more details.                       *)
-(*                                                                     *)
-(***********************************************************************)
+(**************************************************************************)
+(*                                                                        *)
+(*    Copyright 2012-2013 OCamlPro                                        *)
+(*    Copyright 2012 INRIA                                                *)
+(*                                                                        *)
+(*  All rights reserved.This file is distributed under the terms of the   *)
+(*  GNU Lesser General Public License version 3.0 with linking            *)
+(*  exception.                                                            *)
+(*                                                                        *)
+(*  OPAM is distributed in the hope that it will be useful, but WITHOUT   *)
+(*  ANY WARRANTY; without even the implied warranty of MERCHANTABILITY    *)
+(*  or FITNESS FOR A PARTICULAR PURPOSE.See the GNU General Public        *)
+(*  License for more details.                                             *)
+(*                                                                        *)
+(**************************************************************************)
 
 let log fmt = OpamGlobals.log "SOLUTION" fmt
 
@@ -94,21 +95,27 @@ let atoms_of_names t names =
             eq_atom sname sversion
           else
             unavailable sname (Some sversion)
-        else
+        else if exists sname None then
           OpamPackage.unknown sname (Some sversion)
+        else
+          OpamPackage.unknown sname None
       ))
     (OpamPackage.Name.Set.elements names)
 
 (* Pretty-print errors *)
 let display_error (n, error) =
   let f action nv =
-    OpamGlobals.error "\n==== ERROR [while %s %s] ====" action (OpamPackage.to_string nv);
+    OpamGlobals.error "\n==== ERROR [while %s %s] ====" action
+      (OpamPackage.to_string nv);
     match error with
-    | OpamParallel.Process_error r  -> OpamGlobals.error "%s" (OpamProcess.string_of_result r)
-    | OpamParallel.Internal_error s -> OpamGlobals.error "Internal error:\n  %s" s in
+    | OpamParallel.Process_error r  ->
+      OpamGlobals.error "%s" (OpamProcess.string_of_result r)
+    | OpamParallel.Internal_error s ->
+      OpamGlobals.error "Internal error:\n  %s" s in
   match n with
   | To_change (Some o, nv) ->
-    if OpamPackage.Version.compare (OpamPackage.version o) (OpamPackage.version nv) < 0 then
+    if OpamPackage.Version.compare (OpamPackage.version o) (OpamPackage.version nv) < 0
+    then
       f "upgrading to" nv
     else
       f "downgrading to" nv
@@ -182,7 +189,7 @@ let can_try_to_recover_from_error l =
     | To_recompile _
     | To_change _
     | To_delete _         -> false
-    ) l
+  ) l
 
 (* Try to recover from errors by installing either the old packages or
    by reinstalling the current ones. This can also fail but if it
@@ -202,6 +209,28 @@ type state = {
   mutable s_installed_roots: package_set;
   mutable s_reinstall      : package_set;
 }
+
+let output_json action_errors = match !OpamGlobals.json_output with
+  | None      -> ()
+  | Some file ->
+    let open OpamParallel in
+    let open OpamProcess in
+    let json_error = function
+      | Process_error r ->
+        `O [ ("process-error",
+              `O [ ("code", `String (string_of_int r.r_code));
+                   ("duration", `Float r.r_duration);
+                   ("info", `O (List.map (fun (k,v) -> (k, `String v)) r.r_info));
+                   ("stdout", `A (List.map (fun s -> `String s) r.r_stdout));
+                   ("stderr", `A (List.map (fun s -> `String s) r.r_stderr));
+                 ])]
+      | Internal_error s ->
+        `O [ ("internal-error", `String s) ] in
+    let json_action (a, e) =
+      `O [ ("package", `String (OpamPackage.to_string (action_contents a)));
+           ("error"  ,  json_error e) ] in
+    let json = `A (List.map json_action action_errors) in
+    OpamFilename.write (OpamFilename.of_string file) (OpamJson.to_string json)
 
 (* Mean function for applying solver solutions. One main process is
    deleting the packages and updating the global state of
@@ -272,16 +301,17 @@ let parallel_apply t action solution =
     | To_change (_, nv) -> add_to_install nv in
 
   try
-    let jobs = OpamFile.Config.jobs t.config in
     (* 1/ We remove all installed packages appearing in the solution. *)
     let deleted = OpamAction.remove_all_packages t ~metadata:true solution in
     remove_from_install deleted;
 
     (* 2/ We install the new packages *)
-    PackageActionGraph.Parallel.parallel_iter jobs solution.to_process ~pre ~child ~post;
+    PackageActionGraph.Parallel.iter
+      (OpamState.jobs t) solution.to_process ~pre ~child ~post;
     if !OpamGlobals.fake then
       OpamGlobals.msg "Simulation complete.\n";
 
+    output_json [];
     OK
   with
   | PackageActionGraph.Parallel.Cyclic actions ->
@@ -296,9 +326,12 @@ let parallel_apply t action solution =
     OpamGlobals.msg "\n";
     if remaining <> [] then (
       OpamGlobals.error
-        "Due to some errors while processing %s, the following actions will NOT be proceeded:"
+        "Due to some errors while processing %s, the following actions will NOT \
+         be proceeded:"
         (string_of_errors errors);
-      List.iter (fun n -> OpamGlobals.error "%s" (PackageAction.string_of_action n)) remaining;
+      List.iter (fun n ->
+        OpamGlobals.error "%s" (PackageAction.string_of_action n)
+      ) remaining;
     );
     if can_try_to_recover_from_error errors then (
       let pkgs = List.map (fst |> action_contents |> OpamPackage.to_string) errors in
@@ -307,7 +340,25 @@ let parallel_apply t action solution =
       List.iter recover_from_error remaining;
     );
     List.iter display_error errors;
+
+    output_json errors;
     Error (List.map fst errors @ remaining)
+
+let simulate_new_state state t =
+  let installed = List.fold_left
+      (fun installed p -> OpamPackage.Set.remove p installed)
+      state.installed t.PackageActionGraph.to_remove in
+  let installed =
+    PackageActionGraph.Topological.fold
+      (fun action installed ->
+        match action with
+        | To_change(_,p) | To_recompile p ->
+          OpamPackage.Set.add p installed
+        | To_delete p ->
+          OpamPackage.Set.remove p installed
+      )
+      t.PackageActionGraph.to_process installed in
+  { state with installed }
 
 (* Apply a solution *)
 let apply ?(force = false) t action solution =
@@ -322,7 +373,15 @@ let apply ?(force = false) t action solution =
       OpamGlobals.msg
         "The following actions will be %s:\n"
         (if !OpamGlobals.fake then "simulated" else "performed");
-      OpamSolver.print_solution solution;
+      let new_state = simulate_new_state t solution in
+      let messages p =
+        let opam = OpamState.opam new_state p in
+        let messages = OpamFile.OPAM.messages opam in
+        OpamMisc.filter_map (fun (s,f) ->
+          if OpamState.eval_filter new_state f then Some s
+          else None
+        )  messages in
+      OpamSolver.print_solution ~messages solution;
       OpamGlobals.msg "%s\n" (OpamSolver.string_of_stats stats)
     );
 
@@ -342,7 +401,7 @@ let apply ?(force = false) t action solution =
               OpamMisc.StringSetMap.fold (fun tags values accu ->
                 if OpamMisc.StringSet.(
                     (* A \subseteq B <=> (A U B) / B = 0 *)
-                    is_empty (diff (union external_tags tags) tags)
+                    is_empty (diff (union external_tags tags) external_tags)
                   )
                 then
                   OpamMisc.StringSet.union values accu

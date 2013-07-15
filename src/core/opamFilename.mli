@@ -1,17 +1,18 @@
-(***********************************************************************)
-(*                                                                     *)
-(*    Copyright 2012 OCamlPro                                          *)
-(*    Copyright 2012 INRIA                                             *)
-(*                                                                     *)
-(*  All rights reserved.  This file is distributed under the terms of  *)
-(*  the GNU Public License version 3.0.                                *)
-(*                                                                     *)
-(*  OPAM is distributed in the hope that it will be useful,            *)
-(*  but WITHOUT ANY WARRANTY; without even the implied warranty of     *)
-(*  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the      *)
-(*  GNU General Public License for more details.                       *)
-(*                                                                     *)
-(***********************************************************************)
+(**************************************************************************)
+(*                                                                        *)
+(*    Copyright 2012-2013 OCamlPro                                        *)
+(*    Copyright 2012 INRIA                                                *)
+(*                                                                        *)
+(*  All rights reserved.This file is distributed under the terms of the   *)
+(*  GNU Lesser General Public License version 3.0 with linking            *)
+(*  exception.                                                            *)
+(*                                                                        *)
+(*  OPAM is distributed in the hope that it will be useful, but WITHOUT   *)
+(*  ANY WARRANTY; without even the implied warranty of MERCHANTABILITY    *)
+(*  or FITNESS FOR A PARTICULAR PURPOSE.See the GNU General Public        *)
+(*  License for more details.                                             *)
+(*                                                                        *)
+(**************************************************************************)
 
 (** Typed filename manipulation *)
 
@@ -27,6 +28,9 @@ val cwd: unit -> Dir.t
 (** Remove a directory *)
 val rmdir: Dir.t -> unit
 
+(** Clean the contents of a directory. *)
+val cleandir: Dir.t -> unit
+
 (** Create a directory *)
 val mkdir: Dir.t -> unit
 
@@ -40,16 +44,14 @@ val sub_dirs: Dir.t -> Dir.t list
 val in_dir: Dir.t -> (unit -> 'a) -> 'a
 
 (** Execute a list of commands in a given directory *)
-val exec: Dir.t -> ?env:(string * string) list -> ?name:string -> string list list -> unit
+val exec: Dir.t -> ?env:(string * string) list -> ?name:string ->
+  ?metadata:(string * string) list -> string list list -> unit
 
 (** Move a directory *)
 val move_dir: src:Dir.t -> dst:Dir.t -> unit
 
 (** Copy a directory *)
 val copy_dir: src:Dir.t -> dst:Dir.t -> unit
-
-(** Copy the unique directory in [src] to [dst] *)
-val copy_unique_dir: src:Dir.t -> dst:Dir.t -> unit
 
 (** Link a directory *)
 val link_dir: src:Dir.t -> dst:Dir.t -> unit
@@ -79,7 +81,7 @@ val create: Dir.t -> Base.t -> t
 val of_basename: Base.t -> t
 
 (** Creation from a raw string (as {i http://<path>}) *)
-val raw_file: string -> t
+val raw: string -> t
 
 (** Prettify a filename:
     - replace /path/to/opam/foo by <opam>/foo
@@ -132,6 +134,12 @@ val move: src:t -> dst:t -> unit
 (** Symlink a file in a directory *)
 val link_in: t -> Dir.t -> unit
 
+(** Read a symlinked file *)
+val readlink: t -> t
+
+(** Is a symlink ? *)
+val is_symlink: t -> bool
+
 (** Copy a file *)
 val copy: src:t -> dst:t -> unit
 
@@ -145,8 +153,11 @@ val extract: t -> Dir.t -> unit
 (** Extract an archive in a given directory (which should already exists) *)
 val extract_in: t -> Dir.t -> unit
 
-(** Check wether a filename starts by a given Dir.t *)
+(** Check whether a filename starts by a given Dir.t *)
 val starts_with: Dir.t -> t -> bool
+
+(** Check whether a filename ends with a given suffix *)
+val ends_with: string -> t -> bool
 
 (** Remove a prefix from a file name *)
 val remove_prefix: Dir.t -> t -> string

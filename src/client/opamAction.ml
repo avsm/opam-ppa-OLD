@@ -1,17 +1,18 @@
-(***********************************************************************)
-(*                                                                     *)
-(*    Copyright 2012-2013 OCamlPro                                     *)
-(*    Copyright 2012-2013 INRIA                                        *)
-(*                                                                     *)
-(*  All rights reserved.  This file is distributed under the terms of  *)
-(*  the GNU Public License version 3.0.                                *)
-(*                                                                     *)
-(*  OPAM is distributed in the hope that it will be useful,            *)
-(*  but WITHOUT ANY WARRANTY; without even the implied warranty of     *)
-(*  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the      *)
-(*  GNU General Public License for more details.                       *)
-(*                                                                     *)
-(***********************************************************************)
+(**************************************************************************)
+(*                                                                        *)
+(*    Copyright 2012-2013 OCamlPro                                        *)
+(*    Copyright 2012 INRIA                                                *)
+(*                                                                        *)
+(*  All rights reserved.This file is distributed under the terms of the   *)
+(*  GNU Lesser General Public License version 3.0 with linking            *)
+(*  exception.                                                            *)
+(*                                                                        *)
+(*  OPAM is distributed in the hope that it will be useful, but WITHOUT   *)
+(*  ANY WARRANTY; without even the implied warranty of MERCHANTABILITY    *)
+(*  or FITNESS FOR A PARTICULAR PURPOSE.See the GNU General Public        *)
+(*  License for more details.                                             *)
+(*                                                                        *)
+(**************************************************************************)
 
 let log fmt = OpamGlobals.log "ACTION" fmt
 
@@ -88,10 +89,14 @@ let install_package t nv =
       OpamVariable.Section.Set.iter (fun s ->
         if not (List.mem s local_sections)
         && not (OpamVariable.Section.Set.mem s libraries_in_opam) then
-          let config_f = OpamFilename.to_string (OpamPath.Switch.build_config t.root t.switch nv) in
+          let config_f =
+            OpamFilename.to_string (OpamPath.Switch.build_config t.root t.switch nv) in
           let opam_f = OpamFilename.to_string (OpamPath.opam t.root nv) in
-          let local_sections = List.map OpamVariable.Section.to_string local_sections in
-          let opam_sections = List.map OpamVariable.Section.to_string (OpamVariable.Section.Set.elements libraries_in_opam) in
+          let local_sections =
+            List.map OpamVariable.Section.to_string local_sections in
+          let opam_sections =
+            List.map OpamVariable.Section.to_string
+              (OpamVariable.Section.Set.elements libraries_in_opam) in
           OpamGlobals.error_and_exit
             "%s appears as a library dependency in %s, but:\n\
              - %s defines the libraries {%s}\n\
@@ -117,24 +122,36 @@ let install_package t nv =
 
       (* Install a list of files *)
       let install_files dst_fn files_fn =
-        let dst = dst_fn t.root t.switch name in
+        let dst_dir = dst_fn t.root t.switch name in
         let files = files_fn install in
-        if not (OpamFilename.exists_dir dst) then (
-          log "creating %s" (OpamFilename.Dir.to_string dst);
-          OpamFilename.mkdir dst;
+        if not (OpamFilename.exists_dir dst_dir) then (
+          log "creating %s" (OpamFilename.Dir.to_string dst_dir);
+          OpamFilename.mkdir dst_dir;
         );
-        let src = OpamFilename.cwd () in
-        List.iter (fun b ->
-          if check ~src ~dst b then
-            let file = OpamFilename.create src b.c in
-            OpamFilename.copy_in file dst
-        ) files in
+        List.iter (fun (base, dst) ->
+            let src_file = OpamFilename.create build_dir base.c in
+            let dst_file = match dst with
+              | None   -> OpamFilename.create dst_dir (OpamFilename.basename src_file)
+              | Some d -> OpamFilename.create dst_dir d in
+            if check ~src:build_dir ~dst:dst_dir base then
+              OpamFilename.copy ~src:src_file ~dst:dst_file;
+          ) files in
+
+      (* bin *)
+      install_files (fun r s _ -> OpamPath.Switch.bin r s) OpamFile.Dot_install.bin;
 
       (* lib *)
       install_files OpamPath.Switch.lib OpamFile.Dot_install.lib;
 
       (* toplevel *)
-      install_files (fun r s _ -> OpamPath.Switch.toplevel r s) OpamFile.Dot_install.toplevel;
+      install_files (fun r s _ -> OpamPath.Switch.toplevel r s)
+        OpamFile.Dot_install.toplevel;
+
+      install_files (fun r s _ -> OpamPath.Switch.stublibs r s)
+        OpamFile.Dot_install.stublibs;
+
+      (* Man pages *)
+      install_files (fun r s _ -> OpamPath.Switch.man_dir r s) OpamFile.Dot_install.man;
 
       (* Shared files *)
       install_files OpamPath.Switch.share OpamFile.Dot_install.share;
@@ -142,26 +159,16 @@ let install_package t nv =
       (* Documentation files *)
       install_files OpamPath.Switch.doc OpamFile.Dot_install.doc;
 
-      (* bin *)
-      List.iter (fun (base, dst) ->
-        let src_dir = OpamFilename.cwd () in
-        let dst_dir = OpamPath.Switch.bin t.root t.switch in
-        let src_file = OpamFilename.create src_dir base.c in
-        let dst_file = match dst with
-          | None   -> OpamFilename.create dst_dir (OpamFilename.basename src_file)
-          | Some d -> OpamFilename.create dst_dir d in
-        if check ~src:src_dir ~dst:dst_dir base then
-          OpamFilename.copy ~src:src_file ~dst:dst_file;
-      ) (OpamFile.Dot_install.bin install);
-
       (* misc *)
       List.iter
         (fun (src, dst) ->
           let src_file = OpamFilename.create (OpamFilename.cwd ()) src.c in
-          if OpamFilename.exists dst && OpamState.confirm "Overwriting %s ?" (OpamFilename.to_string dst) then
+          if OpamFilename.exists dst
+          && OpamState.confirm "Overwriting %s ?" (OpamFilename.to_string dst) then
             OpamFilename.copy ~src:src_file ~dst
           else begin
-            OpamGlobals.msg "Installing %s to %s.\n" (OpamFilename.Base.to_string src.c) (OpamFilename.to_string dst);
+            OpamGlobals.msg "Installing %s to %s.\n"
+              (OpamFilename.Base.to_string src.c) (OpamFilename.to_string dst);
             if OpamState.confirm "Continue ?" then
               OpamFilename.copy ~src:src_file ~dst
           end
@@ -182,16 +189,22 @@ let install_package t nv =
 
 let get_archive t nv =
   log "get_archive %s" (OpamPackage.to_string nv);
-  let aux repo_p repo =
-    OpamRepository.download repo nv;
-    let src = OpamPath.Repository.archive repo_p nv in
-    let dst = OpamPath.archive t.root nv in
-    if OpamFilename.exists src then (
-      OpamFilename.link ~src ~dst;
-      Some dst
-    ) else
-      None in
-  OpamState.with_repository t nv aux
+  let dst = OpamPath.archive t.root nv in
+  if OpamFilename.exists dst then Some dst
+  else
+    match OpamState.package_repository_state t nv with
+    | None   -> None
+    | Some s ->
+      begin match s.pkg_archive with
+        | None   -> OpamRepository.download s.pkg_repo nv
+        | Some _ -> ()
+      end;
+      let src = OpamPath.Repository.archive s.pkg_repo nv in
+      if OpamFilename.exists src then (
+        OpamFilename.move ~src ~dst;
+        Some dst;
+      ) else
+        None
 
 (* Prepare the package build:
    * apply the patches
@@ -240,26 +253,43 @@ let extract_package t nv =
   let build_dir = OpamPath.Switch.build t.root t.switch nv in
   OpamFilename.rmdir build_dir;
   begin match OpamState.pinned_path t (OpamPackage.name nv) with
-  | Some p ->
-    let pinned_dir = OpamPath.Switch.pinned_dir t.root t.switch (OpamPackage.name nv) in
-    if not (OpamFilename.exists_dir pinned_dir) then (
-      match OpamState.update_pinned_package t (OpamPackage.name nv) with
-      | Not_available -> OpamGlobals.error "%s is not available" (OpamFilename.Dir.to_string p)
-      | Result _
-      | Up_to_date _  -> ()
-    ) else
-      OpamGlobals.msg "Synchronization: nothing to do as the pinned package has already been initialized.\n";
-    let _files = OpamState.with_repository t nv (fun repo _ ->
-        OpamFilename.in_dir pinned_dir (fun () -> OpamRepository.copy_files repo nv)
-      ) in
-    OpamFilename.copy_dir ~src:pinned_dir ~dst:build_dir
-  | _ ->
-    match get_archive t nv with
-    | None         -> ()
-    | Some archive ->
-      OpamGlobals.msg "Extracting %s.\n" (OpamFilename.to_string archive);
-      OpamFilename.extract archive build_dir
+    | Some p ->
+
+      let pinned_dir =
+        OpamPath.Switch.pinned_dir t.root t.switch (OpamPackage.name nv) in
+      if not (OpamFilename.exists_dir pinned_dir) then (
+        match OpamState.update_pinned_package t (OpamPackage.name nv) with
+        | Not_available -> OpamGlobals.error "%s is not available"
+                             (OpamFilename.Dir.to_string p)
+        | Result _
+        | Up_to_date _  -> ()
+      ) else
+        OpamGlobals.msg
+          "Synchronization: nothing to do as the pinned package has already \
+           been initialized.\n";
+
+      begin (* Copy eventual files *)
+        try
+          let repo_name = OpamPackage.Map.find nv t.package_index in
+          let repo = OpamRepositoryName.Map.find repo_name t.repositories in
+          let _files = OpamFilename.in_dir pinned_dir (fun () ->
+            OpamRepository.copy_files repo nv
+          ) in ()
+        with Not_found ->
+          ()
+      end;
+
+      (* Copy the resulting dir *)
+      OpamFilename.copy_dir ~src:pinned_dir ~dst:build_dir
+
+    | None ->
+      match get_archive t nv with
+      | None         -> ()
+      | Some archive ->
+        OpamGlobals.msg "Extracting %s.\n" (OpamFilename.to_string archive);
+        OpamFilename.extract archive build_dir
   end;
+
   prepare_package_build t nv;
   build_dir
 
@@ -267,9 +297,9 @@ let string_of_commands commands =
   let commands_s = List.map (fun cmd -> String.concat " " cmd)  commands in
   "  "
   ^ if commands_s <> [] then
-      String.concat "\n  " commands_s
-    else
-      "Nothing to do."
+    String.concat "\n  " commands_s
+  else
+    "Nothing to do."
 
 let compilation_env t opam =
   let env0 = OpamState.get_full_env t in
@@ -278,6 +308,19 @@ let compilation_env t opam =
     ("OPAM_PACKAGE_VERSION", OpamPackage.Version.to_string (OpamFile.OPAM.version opam))
   ] @ env0 in
   OpamState.add_to_env t env1 (OpamFile.OPAM.build_env opam)
+
+let get_metadata t =
+  let compiler =
+    if t.compiler = OpamCompiler.system then
+      let system_version = match OpamCompiler.Version.system () with
+        | None   -> "<none>"
+        | Some v -> OpamCompiler.Version.to_string v in
+      Printf.sprintf "system (%s)" system_version
+    else
+      OpamCompiler.to_string t.compiler in
+  [
+    ("compiler", compiler);
+  ]
 
 let update_metadata t ~installed ~installed_roots ~reinstall =
   let installed_roots = OpamPackage.Set.inter installed_roots installed in
@@ -302,26 +345,29 @@ let remove_package_aux t ~metadata ~rm_build nv =
 
   (* Run the remove script *)
   let opam_f = OpamPath.opam t.root nv in
-  if OpamFilename.exists opam_f then (
+  OpamGlobals.msg "Removing %s.\n" (OpamPackage.to_string nv);
+
+  if not (OpamFilename.exists opam_f) then
+    OpamGlobals.msg "  No OPAM file has been found!\n"
+  else (
     let opam = OpamState.opam t nv in
     let env = compilation_env t opam in
     match OpamState.filter_commands t (OpamFile.OPAM.remove opam) with
-    | []     ->
-      OpamGlobals.msg "Uninstalling %s.\n" (OpamPackage.to_string nv);
+    | []     -> ()
     | remove ->
-      OpamGlobals.msg "Uninstalling %s:\n" (OpamPackage.to_string nv);
       let p_build = OpamPath.Switch.build t.root t.switch nv in
-      (* We try to run the remove scripts in the folder where it was extracted
-         If it does not exist, we try to download and extract the archive again,
-         if that fails, we don't really care. *)
-      (* We also use a small hack: if the remove command is simply 'ocamlfind remove xxx'
-         then, no need to extract the archive again. *)
+      (* We try to run the remove scripts in the folder where it was
+         extracted If it does not exist, we try to download and
+         extract the archive again, if that fails, we don't really
+         care. *)
+      (* We also use a small hack: if the remove command is simply
+         'ocamlfind remove xxx' then, no need to extract the archive
+         again. *)
       let use_ocamlfind = function
         | [] -> true
         | "ocamlfind" :: _ -> true
         | _ -> false in
       if not (OpamFilename.exists_dir p_build)
-      && OpamState.mem_repository t nv
       && not (List.for_all use_ocamlfind remove) then (
         try let _ = extract_package t nv in ()
         with _ -> ()
@@ -333,7 +379,8 @@ let remove_package_aux t ~metadata ~rm_build nv =
         else t.root , None in
       try
         OpamGlobals.msg "%s\n" (string_of_commands remove);
-        OpamFilename.exec ~env ?name exec_dir remove
+        let metadata = get_metadata t in
+        OpamFilename.exec ~env ?name exec_dir ~metadata remove
       with _ ->
         ();
   );
@@ -349,28 +396,40 @@ let remove_package_aux t ~metadata ~rm_build nv =
   if not !OpamGlobals.keep_build_dir && rm_build then
     OpamFilename.rmdir (OpamPath.Switch.build t.root t.switch nv);
 
-  (* Clean-up the repositories *)
-  log "Cleaning-up the repositories";
-  let repos =
-    try OpamPackage.Name.Map.find (OpamPackage.name nv) t.repo_index
-    with _ -> [] in
-  List.iter (fun r ->
-    let repo_p = OpamPath.Repository.create t.root r in
-    let tmp_dir = OpamPath.Repository.tmp_dir repo_p nv in
-    OpamFilename.rmdir tmp_dir
-  ) repos;
+  (* Clean-up the active repository *)
+  log "Cleaning-up the active repository";
+  begin
+    try
+      let repo_name = OpamPackage.Map.find nv t.package_index in
+      let repo = OpamRepositoryName.Map.find repo_name t.repositories in
+      let tmp_dir = OpamPath.Repository.tmp_dir repo nv in
+      OpamFilename.rmdir tmp_dir
+    with Not_found ->
+      ()
+  end;
+
+  let install =
+    OpamFile.Dot_install.safe_read (OpamPath.Switch.install t.root t.switch name) in
+
+  let remove_files dst_fn files =
+    let files = files install in
+    List.iter (fun (base, dst) ->
+        let dst_dir = dst_fn t.root t.switch in
+        let dst_file = match dst with
+          | None   -> OpamFilename.create dst_dir base.c
+          | Some b -> OpamFilename.create dst_dir b in
+        OpamFilename.remove dst_file
+      ) files in
 
   (* Remove the binaries *)
   log "Removing the binaries";
-  let install = OpamFile.Dot_install.safe_read (OpamPath.Switch.install t.root t.switch name) in
-  List.iter (fun (base, dst) ->
-    let dir = OpamPath.Switch.bin t.root t.switch in
-    let dummy_src = OpamFilename.create dir base.c in
-    let dst = match dst with
-      | None   -> OpamFilename.create dir (OpamFilename.basename dummy_src)
-      | Some b -> OpamFilename.create dir b in
-    OpamFilename.remove dst
-  ) (OpamFile.Dot_install.bin install);
+  remove_files OpamPath.Switch.bin OpamFile.Dot_install.bin;
+
+  (* Remove the C bindings *)
+  remove_files OpamPath.Switch.stublibs OpamFile.Dot_install.stublibs;
+
+  (* Remove man pages *)
+  remove_files OpamPath.Switch.man_dir OpamFile.Dot_install.man;
 
   (* Remove the misc files *)
   log "Removing the misc files";
@@ -386,11 +445,11 @@ let remove_package_aux t ~metadata ~rm_build nv =
      future installation. TODO: is it the expected semantics ? *)
   let share = OpamPath.Switch.share t.root t.switch name in
   (match OpamFilename.rec_files share, OpamFilename.rec_dirs share with
-  | [], [] -> OpamFilename.rmdir share
-  | _      ->
-    OpamGlobals.msg
-      "WARNING: %s is not empty. We keep its contents for future installations.\n"
-      (OpamFilename.Dir.to_string share));
+   | [], [] -> OpamFilename.rmdir share
+   | _      ->
+     OpamGlobals.msg
+       "WARNING: %s is not empty. We keep its contents for future installations.\n"
+       (OpamFilename.Dir.to_string share));
 
   (* Remove .config and .install *)
   log "Removing config and install files";
@@ -412,8 +471,12 @@ let remove_package_aux t ~metadata ~rm_build nv =
 let remove_package t ~metadata ~rm_build nv =
   if not !OpamGlobals.fake then
     remove_package_aux t ~metadata ~rm_build nv
+  else
+    OpamGlobals.msg "(simulation) Removing %s.\n" (OpamPackage.to_string nv)
 
-(* Uninstall all the current packages in a solution  *)
+(* Remove all the packages appearing in a solution (and which need to
+   be removed, eg. because of a direct uninstall action or because of
+   recompilation.  *)
 let remove_all_packages t ~metadata sol =
   let open PackageActionGraph in
   let deleted = ref [] in
@@ -445,8 +508,8 @@ let remove_all_packages t ~metadata sol =
    explore.  Do not try to recover yet. *)
 let build_and_install_package_aux t ~metadata nv =
   let left, right = match !OpamGlobals.utf8_msgs with
-  | true -> "\xF0\x9F\x90\xAB " (* UTF-8 <U+1F42B, U+0020> *), ""
-  | false -> "=-=-=", "=-=-="
+    | true -> "\xF0\x9F\x90\xAB " (* UTF-8 <U+1F42B, U+0020> *), ""
+    | false -> "=-=-=", "=-=-="
   in
   OpamGlobals.msg "\n%s Installing %s %s\n" left (OpamPackage.to_string nv) right;
 
@@ -468,7 +531,8 @@ let build_and_install_package_aux t ~metadata nv =
       | commands ->
         OpamGlobals.msg "%s:\n%s\n" name (string_of_commands commands);
         let name = OpamPackage.Name.to_string (OpamPackage.name nv) in
-        OpamFilename.exec ~env ~name p_build commands in
+        let metadata = get_metadata t in
+        OpamFilename.exec ~env ~name ~metadata p_build commands in
 
     (* First, we build the package. *)
     exec ("Building " ^ OpamPackage.to_string nv) OpamFile.OPAM.build;
@@ -506,3 +570,6 @@ let build_and_install_package_aux t ~metadata nv =
 let build_and_install_package t ~metadata nv =
   if not !OpamGlobals.fake then
     build_and_install_package_aux t ~metadata nv
+  else
+    OpamGlobals.msg "(simulation) Building and installing %s.\n"
+      (OpamPackage.to_string nv)

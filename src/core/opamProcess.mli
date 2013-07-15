@@ -1,17 +1,18 @@
-(***********************************************************************)
-(*                                                                     *)
-(*    Copyright 2011-2012 OCamlPro                                     *)
-(*    Copyright 2011-2012 INRIA                                        *)
-(*                                                                     *)
-(*  All rights reserved.  This file is distributed under the terms of  *)
-(*  the GNU Public License version 3.0.                                *)
-(*                                                                     *)
-(*  OPAM is distributed in the hope that it will be useful,            *)
-(*  but WITHOUT ANY WARRANTY; without even the implied warranty of     *)
-(*  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the      *)
-(*  GNU General Public License for more details.                       *)
-(*                                                                     *)
-(***********************************************************************)
+(**************************************************************************)
+(*                                                                        *)
+(*    Copyright 2012-2013 OCamlPro                                        *)
+(*    Copyright 2012 INRIA                                                *)
+(*                                                                        *)
+(*  All rights reserved.This file is distributed under the terms of the   *)
+(*  GNU Lesser General Public License version 3.0 with linking            *)
+(*  exception.                                                            *)
+(*                                                                        *)
+(*  OPAM is distributed in the hope that it will be useful, but WITHOUT   *)
+(*  ANY WARRANTY; without even the implied warranty of MERCHANTABILITY    *)
+(*  or FITNESS FOR A PARTICULAR PURPOSE.See the GNU General Public        *)
+(*  License for more details.                                             *)
+(*                                                                        *)
+(**************************************************************************)
 
 (** Process handling *)
 
@@ -24,8 +25,9 @@ type t = {
   p_time   : float;         (** Process start time *)
   p_stdout : string option; (** stdout dump file *)
   p_stderr : string option; (** stderr dump file *)
-  p_env    : string option; (** dump environement variables *)
+  p_env    : string option; (** dump environment variables *)
   p_info   : string option; (** dump process info *)
+  p_metadata: (string * string) list (** Metadata associated to the process *)
 }
 
 (** [create cmd args] create a new process to execute the command
@@ -37,14 +39,14 @@ type t = {
     set). *)
 val create :
   ?info_file:string -> ?env_file:string -> ?stdout_file:string -> ?stderr_file:string ->
-  ?env:string array ->
+  ?env:string array -> ?metadata:(string*string) list ->
   verbose:bool -> string -> string list -> t
 
 (** Process results *)
 type result = {
   r_code     : int;         (** Process exit code *)
   r_duration : float;       (** Process duration *)
-  r_info     : string;      (** Process info *)
+  r_info     : (string * string) list; (** Process info *)
   r_stdout   : string list; (** Content of stdout dump file *)
   r_stderr   : string list; (** Content of stderr dump file *)
   r_cleanup  : string list; (** List of files to clean-up *)
@@ -58,7 +60,8 @@ val wait: t -> result
     [name.info], [name.env], [name.out] and [name.err] and are
     created, and contains the process main description, the environment
     variables, the standard output and the standard error. *)
-val run : ?env:string array -> ?verbose:bool -> ?name:string -> string -> string list -> result
+val run : ?env:string array -> ?verbose:bool -> ?name:string ->
+  ?metadata:(string*string) list -> string -> string list -> result
 
 (** Is the process result a success ? *)
 val is_success : result -> bool

@@ -1,18 +1,20 @@
+(**************************************************************************)
+(*                                                                        *)
+(*    Copyright 2012-2013 OCamlPro                                        *)
+(*    Copyright 2012 INRIA                                                *)
+(*                                                                        *)
+(*  All rights reserved.This file is distributed under the terms of the   *)
+(*  GNU Lesser General Public License version 3.0 with linking            *)
+(*  exception.                                                            *)
+(*                                                                        *)
+(*  OPAM is distributed in the hope that it will be useful, but WITHOUT   *)
+(*  ANY WARRANTY; without even the implied warranty of MERCHANTABILITY    *)
+(*  or FITNESS FOR A PARTICULAR PURPOSE.See the GNU General Public        *)
+(*  License for more details.                                             *)
+(*                                                                        *)
+(**************************************************************************)
+
 {
-(***********************************************************************)
-(*                                                                     *)
-(*    Copyright 2012 OCamlPro                                          *)
-(*    Copyright 2012 INRIA                                             *)
-(*                                                                     *)
-(*  All rights reserved.  This file is distributed under the terms of  *)
-(*  the GNU Public License version 3.0.                                *)
-(*                                                                     *)
-(*  OPAM is distributed in the hope that it will be useful,            *)
-(*  but WITHOUT ANY WARRANTY; without even the implied warranty of     *)
-(*  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the      *)
-(*  GNU General Public License for more details.                       *)
-(*                                                                     *)
-(***********************************************************************)
 
 open OpamParser
 
@@ -52,13 +54,14 @@ let buffer_rule r lb =
   Buffer.contents b
 }
 
-let space = [' ' '\t' '\r']
-let alpha = ['a'-'z' 'A'-'Z' '_']
-let digit = ['0'-'9']
-let char  = ['-' '_']
-let ident = alpha (alpha | digit | char)*
+let space  = [' ' '\t' '\r']
+let alpha  = ['a'-'z' 'A'-'Z' '_']
+let digit  = ['0'-'9']
+let char   = ['-' '_' '+']
+let achar  = alpha | digit | char
+let ident  = alpha achar* (':' achar+)?
 let symbol = ['=' '<' '>' '!' '+' '|' '&']+
-let int = '-'? ['0'-'9']+
+let int    = '-'? ['0'-'9']+
 
 rule token = parse
 | space  { token lexbuf }
@@ -72,6 +75,7 @@ rule token = parse
 | ")"    { RPAR }
 | '\"'   { STRING (buffer_rule string lexbuf) }
 | "(*"   { comment 1 lexbuf; token lexbuf }
+| "#"    { comment_line lexbuf; token lexbuf }
 | "true" { BOOL true }
 | "false"{ BOOL false }
 | int    { INT (int_of_string (Lexing.lexeme lexbuf)) }
@@ -104,3 +108,7 @@ and comment n = parse
 | eof  { error "unterminated comment" }
 | '\n' { newline lexbuf; comment n lexbuf }
 | _    { comment n lexbuf }
+
+and comment_line = parse
+| [^'\n']* '\n' { newline lexbuf }
+| [^'\n']       { () }

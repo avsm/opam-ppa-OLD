@@ -1,20 +1,22 @@
-(***********************************************************************)
-(*                                                                     *)
-(*    Copyright 2012 OCamlPro                                          *)
-(*    Copyright 2012 INRIA                                             *)
-(*                                                                     *)
-(*  All rights reserved.  This file is distributed under the terms of  *)
-(*  the GNU Public License version 3.0.                                *)
-(*                                                                     *)
-(*  OPAM is distributed in the hope that it will be useful,            *)
-(*  but WITHOUT ANY WARRANTY; without even the implied warranty of     *)
-(*  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the      *)
-(*  GNU General Public License for more details.                       *)
-(*                                                                     *)
-(***********************************************************************)
+(**************************************************************************)
+(*                                                                        *)
+(*    Copyright 2012-2013 OCamlPro                                        *)
+(*    Copyright 2012 INRIA                                                *)
+(*                                                                        *)
+(*  All rights reserved.This file is distributed under the terms of the   *)
+(*  GNU Lesser General Public License version 3.0 with linking            *)
+(*  exception.                                                            *)
+(*                                                                        *)
+(*  OPAM is distributed in the hope that it will be useful, but WITHOUT   *)
+(*  ANY WARRANTY; without even the implied warranty of MERCHANTABILITY    *)
+(*  or FITNESS FOR A PARTICULAR PURPOSE.See the GNU General Public        *)
+(*  License for more details.                                             *)
+(*                                                                        *)
+(**************************************************************************)
 
 exception Process_error of OpamProcess.result
 exception Internal_error of string
+exception Command_not_found of string
 
 let log fmt = OpamGlobals.log "SYSTEM" fmt
 
@@ -27,30 +29,34 @@ let internal_error fmt =
 let process_error r =
   raise (Process_error r)
 
-module Sys2 = struct
-  open Unix
+let command_not_found cmd =
+  raise (Command_not_found cmd)
 
-  (** behaves as [Sys.is_directory] except for symlinks, which returns always [false]. *)
+module Sys2 = struct
+  (* same as [Sys.is_directory] except for symlinks, which returns always [false]. *)
   let is_directory file =
-    (lstat file).st_kind = S_DIR
+    Unix.( (lstat file).st_kind = S_DIR )
 end
 
 let (/) = Filename.concat
 
+let temp_basename prefix =
+  Printf.sprintf "%s-%d-%06x" prefix (Unix.getpid ()) (Random.int 0xFFFFFF)
+
 let rec mk_temp_dir () =
-  let s =
-    Filename.temp_dir_name /
-    Printf.sprintf "opam-%d-%06x" (Unix.getpid ()) (Random.int 100_000) in
+  let s = Filename.temp_dir_name / temp_basename "opam" in
   if Sys.file_exists s then
     mk_temp_dir ()
   else
     s
 
 let safe_mkdir dir =
-  let open Unix in
   if not (Sys.file_exists dir) then
-    try mkdir dir 0o755
-    with Unix_error(EEXIST,_,_) -> ()
+    try
+      log "mkdir %s" dir;
+      Unix.mkdir dir 0o755
+    with
+      Unix.Unix_error(Unix.EEXIST,_,_) -> ()
 
 let mkdir dir =
   let rec aux dir =
@@ -65,13 +71,15 @@ let temp_file ?dir prefix =
     | None   -> !OpamGlobals.root_dir / "log"
     | Some d -> d in
   mkdir temp_dir;
-  temp_dir / Printf.sprintf "%s-%06x" prefix (Random.int 0xFFFFFF)
+  temp_dir / temp_basename prefix
 
 let remove_file file =
   if Sys.file_exists file
   || (try let _ = Unix.lstat file in true with _ -> false)
   then (
-    try Unix.unlink file
+    try
+      log "rm %s" file;
+      Unix.unlink file
     with e ->
       internal_error "Cannot remove %s (%s)." file (Printexc.to_string e)
   )
@@ -111,8 +119,13 @@ let chdir dir =
 
 let in_dir dir fn =
   let reset_cwd =
-    let cwd = Sys.getcwd () in
-    fun () -> chdir cwd in
+    let cwd =
+      try Some (Sys.getcwd ())
+      with _ -> None in
+    fun () ->
+      match cwd with
+      | None     -> ()
+      | Some cwd -> try chdir cwd with _ -> () in
   chdir dir;
   try
     let r = fn () in
@@ -163,8 +176,11 @@ let rec remove_dir dir =
   if Sys.file_exists dir then begin
     List.iter remove_file (files_all_not_dir dir);
     List.iter remove_dir (directories_strict dir);
-    try Unix.rmdir dir
-    with e -> internal_error "Cannot remove %s (%s)." dir (Printexc.to_string e)
+    try
+      log "rmdir %s" dir;
+      Unix.rmdir dir
+    with e ->
+      internal_error "Cannot remove %s (%s)." dir (Printexc.to_string e)
   end
 
 let with_tmp_dir fn =
@@ -189,23 +205,20 @@ let getchdir s =
   chdir s;
   p
 
-(* Expand '..' and '.' *)
 let normalize s =
-  if Sys.file_exists s then
-    getchdir (getchdir s)
-  else
-    s
+  getchdir (getchdir s)
+
+let needs_normalization f =
+  Sys.file_exists f && Filename.is_relative f
 
 let real_path p =
-  if Sys.file_exists p && Sys.is_directory p then
+  if not (needs_normalization p) then p
+  else if Sys.is_directory p then
     normalize p
   else (
-    let dir = normalize (Filename.dirname p) in
     let dir =
-      if Filename.is_relative dir then
-        Sys.getcwd () / dir
-      else
-        dir in
+      let d = Filename.dirname p in
+      if needs_normalization d then normalize d else d in
     let base = Filename.basename p in
     if base = "." then
       dir
@@ -222,7 +235,8 @@ let reset_env = lazy (
   let env =
     List.rev_map (fun (k,v as c) ->
       match k with
-      | "PATH" -> k, String.concat ":" (OpamMisc.reset_env_value ~prefix:!OpamGlobals.root_dir v)
+      | "PATH" ->
+        k, String.concat ":" (OpamMisc.reset_env_value ~prefix:!OpamGlobals.root_dir v)
       | _      -> c
     ) env in
   let env = List.rev_map (fun (k,v) -> k^"="^v) env in
@@ -239,7 +253,7 @@ let command_exists ?(env=default_env) name =
   OpamProcess.clean_files r;
   OpamProcess.is_success r
 
-let run_process ?verbose ?(env=default_env) ?name = function
+let run_process ?verbose ?(env=default_env) ?name ?metadata = function
   | []           -> invalid_arg "run_process"
   | cmd :: args ->
 
@@ -261,35 +275,40 @@ let run_process ?verbose ?(env=default_env) ?name = function
         | None   -> !OpamGlobals.debug || !OpamGlobals.verbose
         | Some b -> b in
 
-      let r = OpamProcess.run ~env ~name ~verbose cmd args in
+      let r = OpamProcess.run ~env ~name ~verbose ?metadata cmd args in
       if OpamProcess.is_success r && not !OpamGlobals.debug then
         OpamProcess.clean_files r;
       r
     ) else
-      (* Display a user-friendly message if the command does not exists *)
-      internal_error "%S: command not found." cmd
+      (* Display a user-friendly message if the command does not exist *)
+      command_not_found cmd
 
-let command ?verbose ?env ?name cmd =
-  let r = run_process ?verbose ?env ?name cmd in
+let command ?verbose ?env ?name ?metadata cmd =
+  let r = run_process ?verbose ?env ?name ?metadata cmd in
   if not (OpamProcess.is_success r) then
     process_error r
 
-let commands ?verbose ?env ?name commands =
-  List.iter (command ?verbose ?env ?name) commands
+let commands ?verbose ?env ?name ?metadata commands =
+  List.iter (command ?verbose ?env ?name ?metadata) commands
 
-let read_command_output ?verbose ?env cmd =
-  let r = run_process ?verbose ?env cmd in
+let read_command_output ?verbose ?env ?metadata cmd =
+  let r = run_process ?verbose ?env ?metadata cmd in
   if OpamProcess.is_success r then
     r.OpamProcess.r_stdout
   else
     process_error r
+
+(* Return [None] if the command does not exist *)
+let read_command_output_opt ?verbose ?env cmd =
+  try Some (read_command_output ?verbose ?env cmd)
+  with Command_not_found _ -> None
 
 let copy src dst =
   if Sys.is_directory src then
     internal_error "Cannot copy %s: it is a directory." src;
   if Sys.file_exists dst && Sys.is_directory dst then
     internal_error "Cannot copy to %s: it is a directory." dst;
-  if  Sys.file_exists dst then
+  if Sys.file_exists dst then
     remove_file dst;
   mkdir (Filename.dirname dst);
   if src <> dst then
@@ -299,7 +318,10 @@ module Tar = struct
 
   let extensions =
     [ [ "tar.gz" ; "tgz" ], 'z'
-    ; [ "tar.bz2" ; "tbz" ], 'j' ]
+    ; [ "tar.bz2" ; "tbz" ], 'j'
+    ; [ "tar.xz" ; "txz" ], 'J'
+    ; [ "tar.lzma" ; "tlz" ], 'Y'
+    ]
 
   let guess_type f =
     let ic = open_in f in
@@ -309,6 +331,8 @@ module Tar = struct
     match c1, c2 with
     | '\031', '\139' -> Some 'z'
     | 'B'   , 'Z'    -> Some 'j'
+    | '\xfd', '\x37' -> Some 'J'
+    | '\x5d', '\x00' -> Some 'Y'
     | _              -> None
 
   let match_ext file ext =
@@ -326,11 +350,11 @@ module Tar = struct
     let ext =
       List.fold_left
         (fun acc (ext, c) -> match acc with
-        | Some f -> Some f
-        | None   ->
-          if match_ext file ext
-          then Some (command c)
-          else None)
+          | Some f -> Some f
+          | None   ->
+            if match_ext file ext
+            then Some (command c)
+            else None)
         None
         extensions in
     match ext with
@@ -349,13 +373,14 @@ let extract file dst =
     match Tar.extract_function file with
     | None   -> internal_error "%s is not a valid tar archive." file
     | Some f ->
-        f tmp_dir;
-        if Sys.file_exists dst then internal_error "Extracting the archive will overwrite %s." dst;
-        match directories_strict tmp_dir with
-        | [x] ->
-            mkdir (Filename.dirname dst);
-            command [ "mv"; x; dst]
-        | _   -> internal_error "The archive contains multiple root directories."
+      f tmp_dir;
+      if Sys.file_exists dst then
+        internal_error "Extracting the archive will overwrite %s." dst;
+      match directories_strict tmp_dir with
+      | [x] ->
+        mkdir (Filename.dirname dst);
+        command [ "mv"; x; dst]
+      | _   -> internal_error "The archive contains multiple root directories."
   )
 
 let extract_in file dst =
@@ -370,7 +395,9 @@ let link src dst =
     mkdir (Filename.dirname dst);
     if Sys.file_exists dst then
       remove_file dst;
-    try Unix.link src dst
+    try
+      log "ln -s %s %s" src dst;
+      Unix.symlink src dst
     with Unix.Unix_error (Unix.EXDEV, _, _) ->
       (* Fall back to copy if hard links are not supported *)
       copy src dst
@@ -412,39 +439,35 @@ let funlock file =
       close_in ic;
       if s = id then (
         OpamGlobals.log id "unlocking %s" file;
+        log "rm %s" file;
         Unix.unlink file;
       ) else
         internal_error "Cannot unlock %s (%s)." file s
     with _ ->
       OpamGlobals.error "%s is broken, removing it and continuing anyway." file;
-        close_in ic;
+      close_in ic;
+      log "rm %s" file;
       Unix.unlink file;
   ) else
     log "Cannot find %s, but continuing anyway..." file
 
 let ocaml_version = lazy (
-  try
-    match read_command_output ~verbose:false [ "ocamlc" ; "-version" ] with
-    | h::_ ->
-      let version = OpamMisc.strip h in
-      log "ocamlc version: %s" version;
-      Some version
-    | []   -> internal_error "Cannot find ocamlc."
-  with _ ->
-    None
+  match read_command_output_opt ~verbose:false [ "ocamlc" ; "-version" ] with
+  | Some (h::_) ->
+    let version = OpamMisc.strip h in
+    log "ocamlc version: %s" version;
+    Some version
+  | Some [] -> internal_error "`ocamlc -version` is empty."
+  | None    -> None
 )
 
 (* Reset the path to get the system compiler *)
 let system command = lazy (
-  try
-    let env = Lazy.force reset_env in
-    match read_command_output ~verbose:false ~env command with
-    | h::_ -> Some (OpamMisc.strip h)
-    | []   ->
-      let cmd = try List.hd command with _ -> "<none>" in
-      internal_error "Cannot find %s." cmd
-  with _ ->
-    None
+  let env = Lazy.force reset_env in
+  match read_command_output_opt ~verbose:false ~env command with
+  | None        -> None
+  | Some (h::_) -> Some (OpamMisc.strip h)
+  | Some ([])   -> internal_error "%S is empty." (String.concat " " command)
 )
 
 let system_ocamlc_where = system [ "ocamlc"; "-where" ]
@@ -464,7 +487,7 @@ let download_command =
   let curl src =
     let curl = [
       "curl";
-      "--write-out"; "%{http_code}"; "--insecure";
+      "--write-out"; "%{http_code}\\n"; "--insecure";
       "--retry"; retry; "--retry-delay"; "2";
       "-OL"; src
     ] in
@@ -472,8 +495,8 @@ let download_command =
     | [] -> internal_error "curl: empty response."
     | l  ->
       let code = List.hd (List.rev l) in
-      try if int_of_string code >= 400 then internal_error "curl: error %s" code
-      with _ -> internal_error "curl: %s is not a valid return code" code in
+      try if int_of_string code >= 400 then internal_error "curl: error %s." code
+      with _ -> internal_error "curl: %s is not a valid return code." code in
   lazy (
     if command_exists "curl" then
       curl
@@ -489,16 +512,16 @@ let really_download ~overwrite ~src ~dst =
     download src;
     match list (fun _ -> true) "." with
       ( [] | _::_::_ ) ->
-        internal_error "Too many downloaded files."
+      internal_error "Too many downloaded files."
     | [filename] ->
-        let dst_file = dst / Filename.basename filename in
-        if not overwrite && Sys.file_exists dst_file then
-          internal_error "The downloaded file will overwrite %s." dst_file;
-        commands [
-          [ "rm"; "-f"; dst_file ];
-          [ "mv"; filename; dst_file ];
-        ];
-        dst_file
+      let dst_file = dst / Filename.basename filename in
+      if not overwrite && Sys.file_exists dst_file then
+        internal_error "The downloaded file will overwrite %s." dst_file;
+      commands [
+        [ "rm"; "-f"; dst_file ];
+        [ "mv"; filename; dst_file ];
+      ];
+      dst_file
   in
   try with_tmp_dir (fun tmp_dir -> in_dir tmp_dir aux)
   with
@@ -545,12 +568,28 @@ let patch p =
   aux 0
 
 let () =
+  let with_opam_info m =
+    let git_version = match OpamVersion.git with
+      | None   -> ""
+      | Some v -> Printf.sprintf " (%s)" (OpamVersion.to_string v) in
+    let opam_version =
+      Printf.sprintf "%s%s" (OpamVersion.to_string OpamVersion.current) git_version in
+    let os = OpamGlobals.os_string () in
+    Printf.sprintf
+      "# %-15s %s\n\
+       # %-15s %s\n\
+       %s"
+      "opam-version" opam_version
+      "os" os
+      m in
   Printexc.register_printer (function
-    | Process_error r  -> Some (OpamProcess.string_of_result r)
-    | Internal_error m -> Some m
-    | Unix.Unix_error (e,fn, msg) ->
+    | Process_error r     -> Some (OpamProcess.string_of_result r)
+    | Internal_error m    -> Some (with_opam_info m)
+    | Command_not_found c -> Some (Printf.sprintf "%S: command not found." c)
+    | Unix.Unix_error (e, fn, msg) ->
       let msg = if msg = "" then "" else " on " ^ msg in
-      let error = Printf.sprintf "%s: %S failed%s: %s" Sys.argv.(0) fn msg (Unix.error_message e) in
-      Some error
+      let error = Printf.sprintf "%s: %S failed%s: %s"
+          Sys.argv.(0) fn msg (Unix.error_message e) in
+      Some (with_opam_info error)
     | _ -> None
   )
