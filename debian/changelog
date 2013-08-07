@@ -1,3 +1,9 @@
+opam (1.0.1+1SNAPSHOT20130807-1ppa1) raring; urgency=low
+
+  * Bump to OPAM 1.0.1 snapshot.
+
+ -- Anil Madhavapeddy <anil@recoil.org>  Wed, 07 Aug 2013 21:55:37 +0100
+
 opam (1.0.0+1SNAPSHOT20130715-1ppa2) raring; urgency=low
 
   * Bump to OPAM 1.0.1 snapshot.
