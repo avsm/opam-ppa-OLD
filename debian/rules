@@ -24,9 +24,7 @@ override_dh_auto_test:
 .PHONY: override_dh_auto_install
 override_dh_auto_install:
 	mkdir -p $(DESTDIR)/usr/bin
-	cp _build/src/client/opamMain.$(BINEXT)			$(DESTDIR)/usr/bin/opam
-	cp _build/src/scripts/opam_mk_repo.$(BINEXT) 		$(DESTDIR)/usr/bin/opam-mk-repo
-	cp _build/src/scripts/opam_repo_check.$(BINEXT) 	$(DESTDIR)/usr/bin/opam-repo-check
+	$(MAKE) $(prefix)=/usr/bin install
 
 .PHONY: override_dh_install
 override_dh_install:
