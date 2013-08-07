@@ -8,14 +8,7 @@ Build-Depends:
  debhelper (>= 8),
  ocaml-nox,
  camlp4,
- ocaml-findlib (>= 1.2.4),
  dh-ocaml (>= 0.9),
- libcudf-ocaml-dev,
- libdose3-ocaml-dev (>= 3.1.2),
- libre-ocaml-dev,
- libcmdliner-ocaml-dev,
- libextlib-ocaml-dev,
- libocamlgraph-ocaml-dev (>= 1.8),
  curl
 Build-Depends-Indep:
  texlive-latex-base,

@@ -12,19 +12,10 @@ BINEXT = $(if $(OCAML_OPT_ARCH),native,byte)
 .PHONY: override_dh_auto_configure
 override_dh_auto_configure:
 	./configure
-	$(MAKE) autogen
-	for file in `ls -1 debian/buildsys/`; do \
-		ln -s debian/buildsys/$$file; \
-	done 
 
 .PHONY: override_dh_auto_build
 override_dh_auto_build:
-	ocamlbuild $(OCAML_BEST).otarget
-ifneq (,$(findstring opam-docs, $(shell dh_listpackages)))
-	$(MAKE) -C doc OPAM=../opamMain.$(BINEXT) man
-	$(RM) -f doc/dev-manual/dev-manual.pdf
-	$(MAKE) -C doc/dev-manual
-endif
+	$(MAKE)
 
 .PHONY: override_dh_auto_test
 override_dh_auto_test:
