@@ -1,0 +1,54 @@
+dose3 (3.1) UNRELEASED; urgency=low
+
+  * Speed up compilation
+  * Add multi-arch support and cross-compilation options to deb-buildcheck
+  * Add --trim to ceve
+  * Add multi-arch unit-tests
+  * Fix Hold and Essential handling in edsp
+  * Add --latest to deb-buildcheck
+  * Add --checkonly to deb-buildcheck
+
+ -- Pietro Abate <pietro.abate@pps.jussieu.fr>  Thu, 4 Oct 2012 09:00:00 +0200
+
+dose3 (3.0.2-hotfix) UNRELEASED; urgency=low
+
+  * Fix debian bug #685171 and regression
+  * Fix candidate selection problem in apt-cudf
+  * Update manpage for deb-buildcheck
+
+ -- Pietro Abate <pietro.abate@pps.jussieu.fr>  Thu, 4 Oct 2012 09:00:00 +0200
+
+dose3 (3.0.2) UNRELEASED; urgency=low
+
+  * Fix  performance regression introduced in version 3.0
+
+ -- Pietro Abate <pietro.abate@pps.jussieu.fr>  Wed, 25 Jun 2012 09:00:00 +0200
+
+dose3 (3.0) UNRELEASED; urgency=low
+
+  * Fix the encoding of debian essential packages
+  * Fix META file
+  * Add more tests for all shipped applications
+
+ -- Pietro Abate <pietro.abate@pps.jussieu.fr>  Wed, 13 Jun 2012 16:55:51 +0200
+
+dose3 (2.9.16) UNRELEASED; urgency=low
+
+  * Add CHANGES and CREDITS files
+  * add distributions specific options (ex : --deb-<option>)
+  * Change the behaviour of the edos solver to honor "Keep package" annotations
+  * Change the default behaviour of distcheck to always consider debian essential
+    packages. The old behaviour can be restored using --deb-ignore-essential
+  * Add --minimal to distcheck to restrict the installation set of a package $p$ 
+    only to packages in the dependency cone of $p$. By default all packages marked
+    as "Keep" are part of installation set.
+  * Add Debian multi-arch translation to cudf.
+  * Add debian specific options to filter dependencies and packages based on the 
+    allowed architectures (APT::Architecture , APT::Architectures::)
+  * add opencsw format support.
+  * Numerous bug fixes and performance improvements.
+  * fix apt-cudf to deal with multi-arch enabled machines
+  * Graduate strong-deps and dominators
+  * add conf file for apt-cudf
+
+ -- Pietro Abate <pietro.abate@pps.jussieu.fr>  Thu, 12 Apr 2012 10:05:18 +0200

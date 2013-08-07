@@ -1,0 +1,59 @@
+description = "Dose3 libraries"
+version = "@PACKAGE_VERSION@"
+archive(byte) = "common.cma algo.cma debian.cma eclipse.cma csw.cma"
+archive(native) = "common.cmxa algo.cmxa debian.cmxa eclipse.cmxa csw.cmxa"
+requires = "extlib, str, pcre, cudf, ocamlgraph, unix, @ZIP@, @BZ2@"
+
+package "common" (
+version = "@PACKAGE_VERSION@"
+archive(byte) = "common.cma"
+archive(native) = "common.cmxa"
+requires = "extlib, str, pcre, cudf, @ZIP@, @BZ2@"
+)
+
+package "algo" (
+version = "@PACKAGE_VERSION@"
+archive(byte) = "algo.cma"
+archive(native) = "algo.cmxa"
+requires = "ocamlgraph, dose3.common"
+)
+
+package "debian" (
+version = "@PACKAGE_VERSION@"
+archive(byte) = "debian.cma"
+archive(native) = "debian.cmxa"
+requires = "dose3.common"
+)
+
+package "eclipse" (
+version = "@PACKAGE_VERSION@"
+archive(byte) = "eclipse.cma"
+archive(native) = "eclipse.cmxa"
+requires = "dose3.common, dose3.debian" 
+)
+
+package "csw" (
+version = "@PACKAGE_VERSION@"
+archive(byte) = "csw.cma"
+archive(native) = "csw.cmxa"
+requires = "dose3.common, dose3.debian" 
+)
+
+package "rpm" (
+version = "@PACKAGE_VERSION@"
+archive(byte) = "rpm.cma"
+archive(native) = "rpm.cmxa"
+requires = "dose3.common"
+)
+
+package "boilerplate" (
+version = "@PACKAGE_VERSION@"
+archive(byte) = "rpm.cma boilerplate.cma"
+archive(native) = "rpm.cmxa boilerplate.cmxa"
+)
+
+package "boilerplateNoRpm" (
+version = "@PACKAGE_VERSION@"
+archive(byte) = "boilerplateNoRpm.cma"
+archive(native) = "boilerplateNoRpm.cmxa"
+)

@@ -1,0 +1,71 @@
+true: -traverse
+<{common,algo,doseparse,deb,rpm,applications,experimental}/**>: traverse
+
+<*/*.ml{i,}>: pp(@CAMLP4OMACRO@)
+<*/*.ml{i,}>: package(extlib), @PKG_CUDF@, package(pcre)
+
+<doseparse/boilerplateNoRpm.ml>: pp(@CAMLP4OMACRO@ @CONFIG_ZIP@ @CONFIG_BZ2@ @CONFIG_DB@ @CONFIG_OCAMLGRAPH@)
+<doseparse/boilerplate.ml>: pp(@CAMLP4OMACRO@ @CONFIG_ZIP@ @CONFIG_BZ2@ @CONFIG_RPM@ @CONFIG_DB@ @CONFIG_OCAMLGRAPH@)
+
+<{common,algo}/*.ml{i,}>: pp(@CAMLP4OMACRO@ @CONFIG_ZIP@ @CONFIG_BZ2@ @CONFIG_RPM@ @CONFIG_DB@ @CONFIG_OCAMLGRAPH@)
+
+<applications/*.ml> or <experimental/*/*.ml> or <experimental/*.ml>: pp(@CAMLP4OMACRO@ @CONFIG_PARMAP@ @CONFIG_OCAMLGRAPH@)
+
+<*/tests.*>: package(oUnit), package(extlib), @PKG_CUDF@, package(pcre), package(zip), package(bz2)
+
+<common/tests.*>: use_common
+<deb/tests.*>: use_common, use_debian
+<rpm/tests.*>: use_common, @USE_RPM@, use_algo, package(ocamlgraph)
+<algo/tests.*>: use_common, use_algo, package(ocamlgraph)
+
+<common/*.ml{i,}>: @PKG_ZIP@, @PKG_BZ2@
+<deb/*.ml{i,}>: use_common
+<rpm/*.ml{i,}>: use_common
+<algo/*.ml{i,}>: use_common, @PKG_OCAMLGRAPH@
+<eclipse/*.ml{i,}>: use_common, use_debian
+<opencsw/*.ml{i,}>: use_common, use_debian
+<doseparse/boilerplate.ml>: use_common, use_debian, use_eclipse, use_csw, @USE_RPM@
+<doseparse/boilerplateNoRpm.ml>: use_common, use_debian, use_eclipse, use_csw
+<rpm/librpm4_stubs.*>: use_rpm, use_rpm4
+<rpm/librpm5_stubs.*>: use_rpm, use_rpm5
+<rpm/rpm.cm{x,}a>: @USE_RPM@
+<rpm/rpm.cmxs>: @LINK_RPM@
+
+<common/*.cmx>: for-pack(Common)
+<algo/*.cmx>: for-pack(Algo)
+<deb/*.cmx>: for-pack(Debian)
+<eclipse/*.cmx>: for-pack(Eclipse)
+<opencsw/*.cmx>: for-pack(Csw)
+<rpm/*.cmx>: for-pack(Rpm)
+
+<{applications,experimental}/*>: use_common, use_debian, use_eclipse, use_csw
+<{applications,experimental}/*>: package(extlib), package(pcre), package(unix)
+<{applications,experimental}/*>: @PKG_CUDF@, @PKG_OCAMLGRAPH@, @PKG_ZIP@, @PKG_BZ2@
+
+<applications/apt-cudf.*>: use_boilerplateNoRpm, use_algo
+<applications/deb-buildcheck.*>: use_algo, use_boilerplateNoRpm
+
+<applications/distcheck.*>: @USE_RPM@, use_algo, use_boilerplate, package(str)
+<applications/ceve.*>: @USE_RPM@, use_algo, use_boilerplate, package(str)
+<applications/smallworld.*>: @USE_RPM@, use_algo, use_boilerplate, package(str)
+<applications/tests.*>: @USE_RPM@, use_algo, use_boilerplate, use_boilerplateNoRpm, @PKG_PARMAP@
+<applications/strong-deps.*>: @USE_RPM@, use_algo, use_boilerplate, package(str)
+<applications/dominators-graph.*>: @USE_RPM@, use_boilerplate, use_algo, package(str)
+<applications/challenged.*>: use_algo, use_boilerplateNoRpm, @PKG_PARMAP@
+<applications/outdated.*>: use_algo, use_boilerplateNoRpm
+
+<experimental/strong-conflicts.*>: @USE_RPM@, use_algo, use_boilerplate
+<experimental/randcudf.*>: use_algo, use_boilerplateNoRpm
+<experimental/deb-cudf.*>: use_boilerplateNoRpm
+<experimental/aptsolutions.*>: use_boilerplateNoRpm, package(str)
+<experimental/edsp-cudf.*>: use_boilerplateNoRpm
+
+<experimental/strongpreds.*>: @USE_RPM@, use_algo, use_boilerplate
+<experimental/cudftodeb.*>: use_boilerplateNoRpm
+<experimental/cudf-solver.*>: use_algo, use_boilerplateNoRpm
+<experimental/treinen-test.*>: use_algo, use_boilerplateNoRpm
+<experimental/partition.*>: use_algo, package(buddy), use_boilerplateNoRpm
+<experimental/cnftocudf.*>: use_boilerplateNoRpm
+<experimental/example.*>: use_boilerplate
+
+<experimental/dudftocudf/*>: use_common, use_debian, use_eclipse, use_csw, package(extlib), package(pcre), package(unix), @PKG_CUDF@, @PKG_ZIP@, @PKG_BZ2@, @PKG_CURL@, @PKG_XML@, use_boilerplateNoRpm
