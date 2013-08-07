@@ -1,0 +1,157 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+<link rel="stylesheet" href="style.css" type="text/css">
+<meta content="text/html; charset=utf-8" http-equiv="Content-Type">
+<link rel="Start" href="index.html">
+<link rel="previous" href="Cmdliner.Manpage.html">
+<link rel="next" href="Cmdliner.Arg.html">
+<link rel="Up" href="Cmdliner.html">
+<link title="Index of types" rel=Appendix href="index_types.html">
+<link title="Index of values" rel=Appendix href="index_values.html">
+<link title="Index of modules" rel=Appendix href="index_modules.html">
+<link title="Cmdliner" rel="Chapter" href="Cmdliner.html"><link title="Terms" rel="Section" href="#1_Terms">
+<link title="Term information" rel="Section" href="#tinfo">
+<link title="Evaluation" rel="Section" href="#1_Evaluation">
+<title>Cmdliner.Term</title>
+</head>
+<body>
+<div class="navbar"><a class="pre" href="Cmdliner.Manpage.html" title="Cmdliner.Manpage">Previous</a>
+&nbsp;<a class="up" href="Cmdliner.html" title="Cmdliner">Up</a>
+&nbsp;<a class="post" href="Cmdliner.Arg.html" title="Cmdliner.Arg">Next</a>
+</div>
+<h1>Module <a href="type_Cmdliner.Term.html">Cmdliner.Term</a></h1>
+<pre><span class="keyword">module</span> Term: <code class="code"><span class="keyword">sig</span></code> <a href="Cmdliner.Term.html">..</a> <code class="code"><span class="keyword">end</span></code></pre><div class="info">
+Terms. 
+<p>
+
+    A term is evaluated by a program to produce a <a href="Cmdliner.Term.html#TYPEresult">result</a>.
+    A term made of terms referring to <a href="Cmdliner.Arg.html">command line arguments</a>
+    implicitly defines a command line syntax.<br>
+</div>
+<hr width="100%">
+<br>
+<h1 id="1_Terms">Terms</h1><br>
+<pre><span id="TYPEt"><span class="keyword">type</span> <code class="type">'a</code> t</span> </pre>
+<div class="info">
+The type for terms evaluating to values of type 'a.<br>
+</div>
+
+<pre><span id="VALpure"><span class="keyword">val</span> pure</span> : <code class="type">'a -> 'a <a href="Cmdliner.Term.html#TYPEt">t</a></code></pre><div class="info">
+<code class="code">pure v</code> is a term that evaluates to <code class="code">v</code>.<br>
+</div>
+<pre><span id="VAL($)"><span class="keyword">val</span> ($)</span> : <code class="type">('a -> 'b) <a href="Cmdliner.Term.html#TYPEt">t</a> -> 'a <a href="Cmdliner.Term.html#TYPEt">t</a> -> 'b <a href="Cmdliner.Term.html#TYPEt">t</a></code></pre><div class="info">
+<code class="code">f $ v</code> is a term that evaluates to the result of applying
+      the evaluation of <code class="code">v</code> to the one of <code class="code">f</code>.<br>
+</div>
+<pre><span id="VALapp"><span class="keyword">val</span> app</span> : <code class="type">('a -> 'b) <a href="Cmdliner.Term.html#TYPEt">t</a> -> 'a <a href="Cmdliner.Term.html#TYPEt">t</a> -> 'b <a href="Cmdliner.Term.html#TYPEt">t</a></code></pre><div class="info">
+<code class="code">app</code> is <a href="Cmdliner.Term.html#VAL($)"><code class="code"><span class="constructor">Cmdliner</span>.<span class="constructor">Term</span>.($)</code></a>.<br>
+</div>
+<pre><span id="VALret"><span class="keyword">val</span> ret</span> : <code class="type">[ `Error of bool * string<br>       | `Help of [ `Groff | `Pager | `Plain ] * string option<br>       | `Ok of 'a ] <a href="Cmdliner.Term.html#TYPEt">t</a> -> 'a <a href="Cmdliner.Term.html#TYPEt">t</a></code></pre><div class="info">
+<code class="code">ret v</code> is a term whose evaluation depends on the case
+      to which <code class="code">v</code> evaluates. With :
+      <ul>
+<li><code class="code"><span class="keywordsign">`</span><span class="constructor">Ok</span> r</code>, it evaluates to <code class="code">r</code>.</li>
+<li><code class="code"><span class="keywordsign">`</span><span class="constructor">Error</span> (usage,e)</code>, the evaluation fails and <code class="code"><span class="constructor">Cmdliner</span></code> prints
+         the error <code class="code">e</code> and the term's usage if <code class="code">usage</code> is <code class="code"><span class="keyword">true</span></code>.</li>
+<li><code class="code"><span class="keywordsign">`</span><span class="constructor">Help</span> (format, name)</code>, the evaluation fails and <code class="code"><span class="constructor">Cmdliner</span></code> prints the
+         term's man page in the given <code class="code">format</code> (or the man page for a 
+         specific <code class="code">name</code> term in case of multiple term evaluation).</li>
+</ul>
+<br>
+</div>
+<pre><span id="VALmain_name"><span class="keyword">val</span> main_name</span> : <code class="type">string <a href="Cmdliner.Term.html#TYPEt">t</a></code></pre><div class="info">
+<code class="code">main_name</code> is a term that evaluates to the "main" term's name.<br>
+</div>
+<pre><span id="VALchoice_names"><span class="keyword">val</span> choice_names</span> : <code class="type">string list <a href="Cmdliner.Term.html#TYPEt">t</a></code></pre><div class="info">
+<code class="code">choice_names</code> is a term that evaluates to the names of the terms
+      to choose from.<br>
+</div>
+<pre><span id="VALman_format"><span class="keyword">val</span> man_format</span> : <code class="type">[ `Groff | `Pager | `Plain ] <a href="Cmdliner.Term.html#TYPEt">t</a></code></pre><div class="info">
+<code class="code">man_format</code> is a term that defines a <code class="code">--man-format</code> option and 
+      evaluates to a value that can be used with <a href="Cmdliner.Manpage.html#VALprint"><code class="code"><span class="constructor">Cmdliner</span>.<span class="constructor">Manpage</span>.print</code></a>.<br>
+</div>
+<br>
+<h1 id="tinfo">Term information</h1> 
+<p>
+
+      Term information defines the name and man page of a term.
+      For simple evaluation this is the name of the program and its
+      man page. For multiple term evaluation, this is 
+      the name of a command and its man page.<br>
+<pre><span id="TYPEinfo"><span class="keyword">type</span> <code class="type"></code>info</span> </pre>
+<div class="info">
+The type for term information.<br>
+</div>
+
+<pre><span id="VALinfo"><span class="keyword">val</span> info</span> : <code class="type">?sdocs:string -><br>       ?man:<a href="Cmdliner.Manpage.html#TYPEblock">Cmdliner.Manpage.block</a> list -><br>       ?docs:string -><br>       ?doc:string -> ?version:string -> string -> <a href="Cmdliner.Term.html#TYPEinfo">info</a></code></pre><div class="info">
+<code class="code">info sdocs man docs doc version name</code> is a term information
+      such that:
+      <ul>
+<li><code class="code">name</code> is the name of the program or the command.</li>
+<li><code class="code">version</code> is the version string of the program, ignored
+         for commands.</li>
+<li><code class="code">doc</code> is a one line description of the program or command used 
+         for the <code class="code"><span class="constructor">NAME</span></code> section of the term's man page. For commands this
+         description is also used in the list of commands of the main
+         term's man page.</li>
+<li><code class="code">docs</code>, only for commands, the title of the section of the main 
+         term's man page where it should be listed (defaults to <code class="code"><span class="string">"COMMANDS"</span></code>).</li>
+<li><code class="code">man</code> is the text of the man page for the term. In the text,
+         the variables <code class="code"><span class="string">"$(tname)"</span></code> and <code class="code"><span class="string">"$(mname)"</span></code> can respectively be 
+         used to refer to the value of <code class="code">name</code> and the main term's name.
+      </li>
+<li><code class="code">sdocs</code> defines the title of the section in which the
+         standard <code class="code">--help</code> and <code class="code">--version</code> arguments are listed.</li>
+</ul>
+<br>
+</div>
+<pre><span id="VALname"><span class="keyword">val</span> name</span> : <code class="type"><a href="Cmdliner.Term.html#TYPEinfo">info</a> -> string</code></pre><div class="info">
+<code class="code">name ti</code> is the name of the term information.<br>
+</div>
+<br>
+<h1 id="1_Evaluation">Evaluation</h1><br>
+<pre><span id="TYPEresult"><span class="keyword">type</span> <code class="type">'a</code> result</span> = <code class="type">[ `Error of [ `Exn | `Parse | `Term ] | `Help | `Ok of 'a | `Version ]</code> </pre>
+<div class="info">
+The type for evaluation results.
+      <ul>
+<li><code class="code"><span class="keywordsign">`</span><span class="constructor">Ok</span> v</code>, the term evaluated successfully and <code class="code">v</code> is the result.</li>
+<li><code class="code"><span class="keywordsign">`</span><span class="constructor">Version</span></code>, the version string of the main term was printed
+       on the help formatter.</li>
+<li><code class="code"><span class="keywordsign">`</span><span class="constructor">Help</span></code>, man page about the term was printed on the help formatter.</li>
+<li><code class="code"><span class="keywordsign">`</span><span class="constructor">Error</span> <span class="keywordsign">`</span><span class="constructor">Parse</span></code>, a command line parse error occured and was 
+         reported on the error formatter.</li>
+<li><code class="code"><span class="keywordsign">`</span><span class="constructor">Error</span> <span class="keywordsign">`</span><span class="constructor">Term</span></code>, a term evaluation error occured and was reported
+         on the error formatter (see <a href="Cmdliner.Term.html#VALret"><code class="code"><span class="constructor">Cmdliner</span>.<span class="constructor">Term</span>.ret</code></a>).</li>
+<li><code class="code"><span class="keywordsign">`</span><span class="constructor">Error</span> <span class="keywordsign">`</span><span class="constructor">Exn</span></code>, an exception <code class="code">e</code> was caught and reported
+         on the error formatter (see the <code class="code">~catch</code> parameter of <a href="Cmdliner.Term.html#VALeval"><code class="code"><span class="constructor">Cmdliner</span>.<span class="constructor">Term</span>.eval</code></a>).</li>
+</ul>
+<br>
+</div>
+
+<pre><span id="VALeval"><span class="keyword">val</span> eval</span> : <code class="type">?help:Format.formatter -><br>       ?err:Format.formatter -><br>       ?catch:bool -><br>       ?argv:string array -><br>       'a <a href="Cmdliner.Term.html#TYPEt">t</a> * <a href="Cmdliner.Term.html#TYPEinfo">info</a> -> 'a <a href="Cmdliner.Term.html#TYPEresult">result</a></code></pre><div class="info">
+<code class="code">eval help err catch argv (t,i)</code>  is the evaluation result
+    of <code class="code">t</code> with command line arguments <code class="code">argv</code> (defaults to <code class="code"><span class="constructor">Sys</span>.argv</code>).
+<p>
+
+    If <code class="code">catch</code> is <code class="code"><span class="keyword">true</span></code> (default) uncaught exeptions
+    are intercepted and their stack trace is written to the <code class="code">err</code>
+    formatter. 
+<p>
+
+    <code class="code">help</code> is the formatter used to print help or version messages
+    (defaults to <code class="code"><span class="constructor">Format</span>.std_formatter</code>). <code class="code">err</code> is the formatter
+    used to print error messages (defaults to <code class="code"><span class="constructor">Format</span>.err_formatter</code>).<br>
+</div>
+<pre><span id="VALeval_choice"><span class="keyword">val</span> eval_choice</span> : <code class="type">?help:Format.formatter -><br>       ?err:Format.formatter -><br>       ?catch:bool -><br>       ?argv:string array -><br>       'a <a href="Cmdliner.Term.html#TYPEt">t</a> * <a href="Cmdliner.Term.html#TYPEinfo">info</a> -><br>       ('a <a href="Cmdliner.Term.html#TYPEt">t</a> * <a href="Cmdliner.Term.html#TYPEinfo">info</a>) list -> 'a <a href="Cmdliner.Term.html#TYPEresult">result</a></code></pre><div class="info">
+<code class="code">eval_choice help err catch argv default (t,i) choices</code> is like <a href="Cmdliner.Term.html#VALeval"><code class="code"><span class="constructor">Cmdliner</span>.<span class="constructor">Term</span>.eval</code></a> 
+      except that if the first argument on the command line is not an option 
+      name it will look in <code class="code">choices</code> for a term whose information has this 
+      name and evaluate it.
+<p>
+
+      If the command name is unknown an error is reported. If the name
+      is unspecified the "main" term <code class="code">t</code> is evaluated. <code class="code">i</code> defines the
+      name and man page of the program.<br>
+</div>
+</body></html>

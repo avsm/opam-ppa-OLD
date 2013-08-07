@@ -66,12 +66,20 @@ let mkdir dir =
     end in
   aux dir
 
-let temp_file ?dir prefix =
+let temp_files = Hashtbl.create 1024
+
+let rec temp_file ?dir prefix =
   let temp_dir = match dir with
     | None   -> !OpamGlobals.root_dir / "log"
     | Some d -> d in
   mkdir temp_dir;
-  temp_dir / temp_basename prefix
+  let file = temp_dir / temp_basename prefix in
+  if Hashtbl.mem temp_files file then
+    temp_file ?dir prefix
+  else (
+    Hashtbl.add temp_files file true;
+    file
+  )
 
 let remove_file file =
   if Sys.file_exists file
@@ -165,23 +173,26 @@ let rec_files dir =
     List.fold_left aux (f @ accu) d in
   aux [] dir
 
+let files dir =
+  files_with_links dir
+
 let rec_dirs dir =
   let rec aux accu dir =
     let d = directories_with_links dir in
     List.fold_left aux (d @ accu) d in
   aux [] dir
 
-(* WARNING it fails if [dir] is not a [S_DIR] or simlinks to a directory *)
-let rec remove_dir dir =
-  if Sys.file_exists dir then begin
-    List.iter remove_file (files_all_not_dir dir);
-    List.iter remove_dir (directories_strict dir);
-    try
-      log "rmdir %s" dir;
-      Unix.rmdir dir
-    with e ->
-      internal_error "Cannot remove %s (%s)." dir (Printexc.to_string e)
-  end
+let dirs dir =
+  directories_with_links dir
+
+(* XXX: won't work on windows *)
+let remove_dir dir =
+  log "rmdir %s" dir;
+  if Sys.file_exists dir then (
+    let err = Sys.command (Printf.sprintf "rm -rf %s" dir) in
+      if err <> 0 then
+        internal_error "Cannot remove %s (error %d)." dir err
+  )
 
 let with_tmp_dir fn =
   let dir = mk_temp_dir () in
@@ -288,8 +299,20 @@ let command ?verbose ?env ?name ?metadata cmd =
   if not (OpamProcess.is_success r) then
     process_error r
 
-let commands ?verbose ?env ?name ?metadata commands =
-  List.iter (command ?verbose ?env ?name ?metadata) commands
+let commands ?verbose ?env ?name ?metadata ?(keep_going=false) commands =
+  let err = ref None in
+  let command =
+    if keep_going then
+      (fun c ->
+        try command ?verbose ?env ?name ?metadata c with
+        | Process_error r -> if !err = None then err := Some r)
+    else
+      fun c -> command ?verbose ?env ?name ?metadata c
+  in
+  List.iter command commands;
+  match !err with
+  | Some err -> raise (Process_error err)
+  | None -> ()
 
 let read_command_output ?verbose ?env ?metadata cmd =
   let r = run_process ?verbose ?env ?metadata cmd in

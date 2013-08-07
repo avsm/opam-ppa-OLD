@@ -81,9 +81,15 @@ val files_with_links: string -> string list
     Links behaving like directory are crossed. *)
 val rec_files: string -> string list
 
+(** Return the list of files in the current directory. *)
+val files: string -> string list
+
 (** [rec_dirs dir] return the list list of all directories recursively
     (going through symbolink links). *)
 val rec_dirs: string -> string list
+
+(** Return the list of directories in the current directory. *)
+val dirs: string -> string list
 
 (** Return the version of the current OCaml compiler. If no OCaml
     compiler is present in the path, then it returns [None]. *)
@@ -110,10 +116,11 @@ val command_exists: ?env:string array -> string -> bool
 val command: ?verbose:bool -> ?env:string array -> ?name:string ->
   ?metadata:(string * string) list -> command -> unit
 
-(** [commands cmds] executes the commands [cmds] in the correct
-    OPAM environment.  It stops whenever one command fails. *)
+(** [commands cmds] executes the commands [cmds] in the correct OPAM
+    environment. It stops whenever one command fails unless [keep_going] is set
+    to [true]. In this case, the first error is re-raised at the end. *)
 val commands: ?verbose:bool -> ?env:string array -> ?name:string ->
-  ?metadata:(string * string) list -> command list -> unit
+  ?metadata:(string * string) list -> ?keep_going:bool -> command list -> unit
 
 (** [read_command_output cmd] executes the command [cmd] in the
     correct OPAM environment and return the lines from stdout if the command

@@ -28,15 +28,17 @@ let string_of_config t =
 
 let need_globals ns =
   ns = []
-  || List.mem OpamPackage.Name.default ns
-  || List.mem (OpamPackage.Name.of_string "globals") ns
+  || List.mem OpamPackage.Name.global_config ns
+  || List.mem (OpamPackage.Name.of_string "global") ns
 
 (* Implicit variables *)
 let implicits t ns =
   let global_implicits =
     if need_globals ns then
       List.map (fun variable ->
-        OpamVariable.Full.create_global OpamPackage.Name.default (OpamVariable.of_string variable)
+        OpamVariable.Full.create_global
+          OpamPackage.Name.global_config
+          (OpamVariable.of_string variable)
       ) [ "ocaml-version"; "preinstalled" ]
     else
       [] in
@@ -65,7 +67,8 @@ let list ns =
   let t = OpamState.load_state "config-list" in
   let globals =
     if need_globals ns then
-      [OpamPackage.Name.default, OpamState.dot_config t OpamPackage.Name.default]
+      [OpamPackage.Name.global_config,
+       OpamState.dot_config t OpamPackage.Name.global_config]
     else
       [] in
   let configs =
@@ -94,7 +97,7 @@ let list ns =
     ) [] configs in
   let contents =
     List.map
-      (fun v -> v, OpamState.contents_of_variable_exn t v)
+      (fun v -> v, OpamState.contents_of_variable_exn t OpamVariable.Map.empty v)
       variables in
   List.iter (fun (variable, contents) ->
     OpamGlobals.msg "%-40s %s\n"
@@ -127,7 +130,7 @@ let includes ~is_rec names =
 let config c =
   log "config-options";
   let t = OpamState.load_state "config-options" in
-  let comp = OpamState.compiler t t.compiler in
+  let comp = OpamState.compiler_comp t t.compiler in
   let names =
     OpamMisc.filter_map
       (fun (n,_) ->
@@ -239,7 +242,7 @@ let config c =
 
 let print_env env =
   List.iter (fun (k,v) ->
-    OpamGlobals.msg "%s=%s; export %s;\n" k v k;
+    OpamGlobals.msg "%s=%S; export %s;\n" k v k;
   ) env
 
 let print_csh_env env =
@@ -275,20 +278,20 @@ let env ~csh ~sexp ~fish=
 let subst fs =
   log "config-substitute";
   let t = OpamState.load_state "config-substitute" in
-  List.iter (OpamState.substitute_file t) fs
+  List.iter (OpamState.substitute_file t OpamVariable.Map.empty) fs
 
 let quick_lookup v =
   let name = OpamVariable.Full.package v in
   let var = OpamVariable.Full.variable v in
-  if name = OpamPackage.Name.default then (
-    let root = OpamPath.default () in
+  if name = OpamPackage.Name.global_config then (
+    let root = OpamPath.root () in
     let switch = match !OpamGlobals.switch with
       | `Command_line s
       | `Env s   -> OpamSwitch.of_string s
       | `Not_set ->
 	let config = OpamPath.config root in
 	OpamFile.Config.switch (OpamFile.Config.read config) in
-    let config = OpamPath.Switch.config root switch OpamPackage.Name.default in
+    let config = OpamPath.Switch.config root switch OpamPackage.Name.global_config in
     let config = OpamFile.Dot_config.read config in
 
     if OpamVariable.to_string var = "switch" then
@@ -306,7 +309,7 @@ let variable v =
     | Some c -> c
     | None   ->
       let t = OpamState.load_state "config-variable" in
-      OpamState.contents_of_variable_exn t v in
+      OpamState.contents_of_variable_exn t OpamVariable.Map.empty v in
   OpamGlobals.msg "%s\n" (OpamVariable.string_of_variable_contents contents)
 
 let setup user global =

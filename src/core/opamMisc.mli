@@ -35,6 +35,9 @@ module type SET = sig
   (** Pretty-print a set *)
   val to_string: t -> string
 
+  (** Return a JSON representation of the given set *)
+  val to_json: t -> OpamJson.t
+
   (** Find an element in the list *)
   val find: (elt -> bool) -> t -> elt
 
@@ -47,6 +50,9 @@ module type MAP = sig
 
   (** Pretty-printing *)
   val to_string: ('a -> string) -> 'a t  -> string
+
+  (** Return a JSON representation of the given map. *)
+  val to_json: ('a -> OpamJson.t) -> 'a t -> OpamJson.t
 
   (** Return the values in the map. *)
   val values: 'a t -> 'a list
@@ -77,6 +83,9 @@ module type ABSTRACT = sig
   (** Convert an abstract value to a string *)
   val to_string: t -> string
 
+  (** Convert an abstract value to a JSON object *)
+  val to_json: t -> OpamJson.t
+
   module Set: SET with type elt = t
   module Map: MAP with type key = t
 end
@@ -85,6 +94,7 @@ end
 module type OrderedType = sig
   include Set.OrderedType
   val to_string: t -> string
+  val to_json: t -> OpamJson.t
 end
 
 (** Set constructor *)
@@ -102,6 +112,7 @@ module Base: sig
   type t = string
   val of_string: string -> t
   val to_string: t -> string
+  val to_json: t -> OpamJson.t
   module Map: MAP with type key = string
   module Set: SET with type elt = string
 end
@@ -170,12 +181,6 @@ val indent_right: string -> int -> string
 (** Cut a string *)
 val sub_at: int -> string -> string
 
-(** Cut a git string of the form /git/address[#SHA] into (address * commit) *)
-val git_of_string: string -> string * string option
-
-(** same as [git_of_string] but for mercurial paths *)
-val hg_of_string: string -> string * string option
-
 (** {2 Misc} *)
 
 (** Remove from a ':' separated list of string the one with the given prefix *)
@@ -202,6 +207,9 @@ val env: unit -> (string * string) list
 (** Return a pretty-printed backtrace *)
 val pretty_backtrace: unit -> string
 
+(** Prettify a local path (eg. replace /home/me/ by '~') *)
+val prettify_path: string -> string
+
 module OP: sig
 
   (** Pipe operator *)
@@ -225,3 +233,7 @@ val guess_shell_compat: unit -> [`csh|`zsh|`sh|`bash|`fish]
 
 (** Guess the location of .profile *)
 val guess_dot_profile: [`csh|`zsh|`sh|`bash|`fish] -> string
+
+(** / *)
+
+val debug: bool ref

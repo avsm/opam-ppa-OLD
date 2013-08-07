@@ -1,0 +1,753 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+<link rel="stylesheet" href="style.css" type="text/css">
+<meta content="text/html; charset=utf-8" http-equiv="Content-Type">
+<link rel="Start" href="index.html">
+<link rel="Up" href="index.html">
+<link title="Index of types" rel=Appendix href="index_types.html">
+<link title="Index of values" rel=Appendix href="index_values.html">
+<link title="Index of modules" rel=Appendix href="index_modules.html">
+<link title="Cmdliner" rel="Chapter" href="Cmdliner.html"><link title="Interface" rel="Section" href="#top">
+<link title="Basics" rel="Section" href="#basics">
+<link title="Command line syntax" rel="Section" href="#cmdline">
+<link title="Examples" rel="Section" href="#examples">
+<link title="Multiple terms" rel="Subsection" href="#2_Multipleterms">
+<link title="Manual" rel="Subsection" href="#2_Manual">
+<link title="Miscellaneous" rel="Subsection" href="#2_Miscellaneous">
+<link title="Optional arguments" rel="Subsection" href="#optargs">
+<link title="Positional arguments" rel="Subsection" href="#posargs">
+<link title="A rm command" rel="Subsection" href="#exrm">
+<link title="A cp command" rel="Subsection" href="#excp">
+<link title="A tail command" rel="Subsection" href="#extail">
+<link title="A darcs command" rel="Subsection" href="#exdarcs">
+<title>Cmdliner</title>
+</head>
+<body>
+<div class="navbar">&nbsp;<a class="up" href="index.html" title="Index">Up</a>
+&nbsp;</div>
+<h1>Module <a href="type_Cmdliner.html">Cmdliner</a></h1>
+<pre><span class="keyword">module</span> Cmdliner: <code class="code"><span class="keyword">sig</span></code> <a href="Cmdliner.html">..</a> <code class="code"><span class="keyword">end</span></code></pre><div class="info">
+Declarative definition of command line interfaces.
+<p>
+
+    <code class="code"><span class="constructor">Cmdliner</span></code> provides a simple and compositional mechanism
+    to convert command line arguments to OCaml values and pass them to
+    your functions. The module automatically handles syntax errors,
+    help messages and UNIX man page generation. It supports programs 
+    with single or multiple commands
+    (like <code class="code">darcs</code> or <code class="code">git</code>) and respect most of the
+    <a href="http://www.opengroup.org/onlinepubs/009695399/basedefs/xbd_chap12.html">
+    POSIX</a> and
+    <a href="http://www.gnu.org/software/libc/manual/html_node/Argument-Syntax.html">
+    GNU</a> conventions.
+<p>
+
+    Consult the <a href="Cmdliner.html#basics">basics</a>, details about the supported
+    <a href="Cmdliner.html#cmdline">command line syntax</a> and <a href="Cmdliner.html#examples"> examples</a> of
+    use. Open the module to use it, it defines only three modules in
+    your scope.
+<p>
+
+    <em>Release 0.9.3 - Daniel Bünzli &lt;daniel.buenzli at erratique.ch&gt; </em><br>
+</div>
+<hr width="100%">
+<br>
+<h1 id="top">Interface</h1><br>
+<pre><span class="keyword">module</span> <a href="Cmdliner.Manpage.html">Manpage</a>: <code class="code"><span class="keyword">sig</span></code> <a href="Cmdliner.Manpage.html">..</a> <code class="code"><span class="keyword">end</span></code></pre><div class="info">
+Man page specification.
+</div>
+<pre><span class="keyword">module</span> <a href="Cmdliner.Term.html">Term</a>: <code class="code"><span class="keyword">sig</span></code> <a href="Cmdliner.Term.html">..</a> <code class="code"><span class="keyword">end</span></code></pre><div class="info">
+Terms.
+</div>
+<pre><span class="keyword">module</span> <a href="Cmdliner.Arg.html">Arg</a>: <code class="code"><span class="keyword">sig</span></code> <a href="Cmdliner.Arg.html">..</a> <code class="code"><span class="keyword">end</span></code></pre><div class="info">
+Terms for command line arguments.
+</div>
+<br>
+<h1 id="basics">Basics</h1>
+<p>
+
+    With <code class="code"><span class="constructor">Cmdliner</span></code> your program evaluates a term. A <em>term</em>
+    is a value of type <a href="Cmdliner.Term.html#TYPEt"><code class="code"><span class="constructor">Cmdliner</span>.<span class="constructor">Term</span>.t</code></a>. The type parameter indicates
+    the type of the result of the evaluation.
+<p>
+
+    One way to create terms is by lifting regular OCaml values with
+    <a href="Cmdliner.Term.html#VALpure"><code class="code"><span class="constructor">Cmdliner</span>.<span class="constructor">Term</span>.pure</code></a>. Terms can be applied to terms evaluating to
+    functional values with <a href="Cmdliner.Term.html#VAL($)"><code class="code"><span class="constructor">Cmdliner</span>.<span class="constructor">Term</span>.($)</code></a> (the type for terms is an
+    <a href="http://dx.doi.org/10.1017/S0956796807006326">applicative
+    functor</a>). For example for the function:
+<pre class="codepre"><code class="code"><span class="keyword">let</span>&nbsp;revolt&nbsp;()&nbsp;=&nbsp;print_endline&nbsp;<span class="string">"Revolt!"</span></code></pre>
+    the term :
+<pre class="codepre"><code class="code"><span class="keyword">open</span>&nbsp;<span class="constructor">Cmdliner</span>;;<br>
+<br>
+<span class="keyword">let</span>&nbsp;revolt_t&nbsp;=&nbsp;<span class="constructor">Term</span>.(pure&nbsp;revolt&nbsp;$&nbsp;pure&nbsp;())</code></pre>
+    is a term that evaluates to the result (and effect) of the <code class="code">revolt</code> 
+    function.
+    Terms are evaluated with <a href="Cmdliner.Term.html#VALeval"><code class="code"><span class="constructor">Cmdliner</span>.<span class="constructor">Term</span>.eval</code></a>:
+<pre class="codepre"><code class="code"><span class="keyword">let</span>&nbsp;()&nbsp;=&nbsp;<span class="keyword">match</span>&nbsp;<span class="constructor">Term</span>.eval&nbsp;(revolt_t,&nbsp;<span class="constructor">Term</span>.info&nbsp;<span class="string">"revolt"</span>)&nbsp;<span class="keyword">with</span>&nbsp;<br>
+<span class="keywordsign">|</span>&nbsp;<span class="keywordsign">`</span><span class="constructor">Error</span>&nbsp;_&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;exit&nbsp;1&nbsp;<span class="keywordsign">|</span>&nbsp;_&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;exit&nbsp;0</code></pre>
+    This defines a command line program named <code class="code"><span class="string">"revolt"</span></code>, without command line 
+    arguments arguments, that just prints <code class="code"><span class="string">"Revolt!"</span></code> on <code class="code">stdout</code>.
+<pre class="codepre"><code class="code">&gt;&nbsp;./revolt&nbsp;<br>
+<span class="constructor">Revolt</span>!</code></pre>
+    The combinators in the <a href="Cmdliner.Arg.html"><code class="code"><span class="constructor">Cmdliner</span>.<span class="constructor">Arg</span></code></a> module allow to extract command
+    line argument data as terms. These terms can then be applied to
+    lifted OCaml functions to be evaluated by the program. 
+<p>
+
+    Terms corresponding to command line argument data that are part of
+    a term evaluation implicitly define a command line syntax.  We
+    show this on an concrete example.
+<p>
+
+    Consider the <code class="code">chorus</code> function that prints repeatedly a 
+    given message :
+<pre class="codepre"><code class="code"><span class="keyword">let</span>&nbsp;chorus&nbsp;count&nbsp;msg&nbsp;=&nbsp;<br>
+&nbsp;&nbsp;<span class="keyword">for</span>&nbsp;i&nbsp;=&nbsp;1&nbsp;<span class="keyword">to</span>&nbsp;count&nbsp;<span class="keyword">do</span>&nbsp;print_endline&nbsp;msg&nbsp;<span class="keyword">done</span></code></pre>
+    we want to make it available from the command line
+    with the synopsis:
+<pre class="codepre"><code class="code">chorus&nbsp;[-c&nbsp;<span class="constructor">COUNT</span>&nbsp;<span class="keywordsign">|</span>&nbsp;--count=<span class="constructor">COUNT</span>]&nbsp;[<span class="constructor">MSG</span>]</code></pre>
+    where <code class="code"><span class="constructor">COUNT</span></code> defaults to <code class="code">10</code> and <code class="code"><span class="constructor">MSG</span></code> defaults to <code class="code"><span class="string">"Revolt!"</span></code>. 
+    We first define a term corresponding to the <code class="code">--count</code>
+    option:
+<pre class="codepre"><code class="code"><span class="keyword">let</span>&nbsp;count&nbsp;=&nbsp;<br>
+&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;doc&nbsp;=&nbsp;<span class="string">"Repeat&nbsp;the&nbsp;message&nbsp;$(docv)&nbsp;times."</span>&nbsp;<span class="keyword">in</span><br>
+&nbsp;&nbsp;<span class="constructor">Arg</span>.(value&nbsp;<span class="keywordsign">&amp;</span>&nbsp;opt&nbsp;int&nbsp;10&nbsp;<span class="keywordsign">&amp;</span>&nbsp;info&nbsp;[<span class="string">"c"</span>;&nbsp;<span class="string">"count"</span>]&nbsp;~docv:<span class="string">"COUNT"</span>&nbsp;~doc)<br>
+</code></pre>
+    This says that <code class="code">count</code> is a term that evaluates to the 
+    value of an optional argument of type <code class="code">int</code> that 
+    defaults to <code class="code">10</code> if unspecified and whose option name is
+    either <code class="code">-c</code> or <code class="code">--count</code>. The arguments <code class="code">doc</code> and <code class="code">docv</code> are used to 
+    generate the option's man page information. 
+<p>
+
+    The term for the positional argument <code class="code"><span class="constructor">MSG</span></code> is:
+<pre class="codepre"><code class="code"><span class="keyword">let</span>&nbsp;msg&nbsp;=&nbsp;<br>
+&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;doc&nbsp;=&nbsp;<span class="string">"The&nbsp;message&nbsp;to&nbsp;print."</span>&nbsp;<span class="keyword">in</span><br>
+&nbsp;&nbsp;<span class="constructor">Arg</span>.(value&nbsp;<span class="keywordsign">&amp;</span>&nbsp;pos&nbsp;0&nbsp;string&nbsp;<span class="string">"Revolt!"</span>&nbsp;<span class="keywordsign">&amp;</span>&nbsp;info&nbsp;[]&nbsp;~docv:<span class="string">"MSG"</span>&nbsp;~doc)<br>
+</code></pre>
+    which says that <code class="code">msg</code> is a term whose value is 
+    the positional argument at index <code class="code">0</code> of type <code class="code">string</code> and
+    defaults to <code class="code"><span class="string">"Revolt!"</span></code> if unspecified. Here again
+    <code class="code">doc</code> and <code class="code">docv</code> are used for the man page information.
+<p>
+
+    The term for executing <code class="code">chorus</code> with these command line arguments
+    is : 
+<pre class="codepre"><code class="code"><span class="keyword">let</span>&nbsp;chorus_t&nbsp;=&nbsp;<span class="constructor">Term</span>.(pure&nbsp;chorus&nbsp;$&nbsp;count&nbsp;$&nbsp;msg)<br>
+</code></pre>
+    and we are now ready to define our program:
+<pre class="codepre"><code class="code"><span class="keyword">let</span>&nbsp;info&nbsp;=&nbsp;<br>
+&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;doc&nbsp;=&nbsp;<span class="string">"print&nbsp;a&nbsp;customizable&nbsp;message&nbsp;repeatedly"</span>&nbsp;<span class="keyword">in</span><br>
+&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;man&nbsp;=&nbsp;[&nbsp;<span class="keywordsign">`</span><span class="constructor">S</span>&nbsp;<span class="string">"BUGS"</span>;&nbsp;<span class="keywordsign">`</span><span class="constructor">P</span>&nbsp;<span class="string">"Email&nbsp;bug&nbsp;reports&nbsp;to&nbsp;&lt;hehey&nbsp;at&nbsp;example.org&gt;."</span>;]&nbsp;<span class="keyword">in</span><br>
+&nbsp;&nbsp;<span class="constructor">Term</span>.info&nbsp;<span class="string">"chorus"</span>&nbsp;~version:<span class="string">"1.6.1"</span>&nbsp;~doc&nbsp;~man<br>
+<br>
+<span class="keyword">let</span>&nbsp;()&nbsp;=&nbsp;<span class="keyword">match</span>&nbsp;<span class="constructor">Term</span>.eval&nbsp;(chorus_t,&nbsp;info)&nbsp;<span class="keyword">with</span>&nbsp;<span class="keywordsign">`</span><span class="constructor">Error</span>&nbsp;_&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;exit&nbsp;1&nbsp;<span class="keywordsign">|</span>&nbsp;_&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;exit&nbsp;0<br>
+</code></pre>
+    The <code class="code">info</code> value created with <a href="Cmdliner.Term.html#VALinfo"><code class="code"><span class="constructor">Cmdliner</span>.<span class="constructor">Term</span>.info</code></a> gives more information
+    about the term we execute and is used to generate the program's
+    man page. Since we provided a <code class="code">~version</code> string, the program will
+    automatically respond to the <code class="code">--version</code> option by printing this
+    string.
+<p>
+
+    A program using <a href="Cmdliner.Term.html#VALeval"><code class="code"><span class="constructor">Cmdliner</span>.<span class="constructor">Term</span>.eval</code></a> always responds to the
+    <code class="code">--help</code> option by showing the man page about the program generated
+    using the information you provided with <a href="Cmdliner.Term.html#VALinfo"><code class="code"><span class="constructor">Cmdliner</span>.<span class="constructor">Term</span>.info</code></a> and <a href="Cmdliner.Arg.html#VALinfo"><code class="code"><span class="constructor">Cmdliner</span>.<span class="constructor">Arg</span>.info</code></a>.
+    Here is the output generated by our example :
+<pre class="verbatim">&gt; ./chorus --help
+NAME
+       chorus - print a customizable message repeatedly
+
+SYNOPSIS
+       chorus [OPTION]... [MSG]
+
+ARGUMENTS
+       MSG (absent=Revolt!)
+           The message to print.
+
+OPTIONS
+       -c COUNT, --count=COUNT (absent=10)
+           Repeat the message COUNT times.
+
+       --help[=FMT] (default=pager)
+           Show this help in format FMT (pager, plain or groff).
+
+       --version
+           Show version information.
+
+BUGS
+       Email bug reports to &lt;hehey at example.org&gt;.</pre>
+<p>
+
+    If a pager is available, this output is written to a pager.
+    This help is also available in plain text or in the 
+    <a href="http://www.gnu.org/software/groff/groff.html">groff</a> man page format by 
+    invoking the program with the option <code class="code">--help=plain</code> or <code class="code">--help=groff</code>. 
+<p>
+
+    For examples of more complex command line definitions look and 
+    run the <a href="Cmdliner.html#examples">examples</a>.
+<p>
+
+    <h2 id="2_Multipleterms">Multiple terms</h2> 
+<p>
+
+    <code class="code"><span class="constructor">Cmdliner</span></code> also provides support for programs like <code class="code">darcs</code> or
+    <code class="code">git</code> that have multiple commands each with their own syntax:
+    <pre class="codepre"><code class="code">prog&nbsp;<span class="constructor">COMMAND</span>&nbsp;[<span class="constructor">OPTION</span>]...&nbsp;<span class="constructor">ARG</span>...</code></pre>
+    A command is defined by coupling a term with 
+    <a href="Cmdliner.Term.html#tinfo">term information</a>. The term information defines the 
+    command name and its man page. Given a list of commands the function
+    <a href="Cmdliner.Term.html#VALeval_choice"><code class="code"><span class="constructor">Cmdliner</span>.<span class="constructor">Term</span>.eval_choice</code></a> will execute the term corresponding to the
+    <code class="code"><span class="constructor">COMMAND</span></code> argument or or a specific "main" term if there is
+    no <code class="code"><span class="constructor">COMMAND</span></code> argument.
+<p>
+
+    <h2 id="2_Manual">Manual</h2>
+<p>
+
+    Man page sections are printed in the order specified by
+    <a href="Cmdliner.Term.html#VALinfo"><code class="code"><span class="constructor">Cmdliner</span>.<span class="constructor">Term</span>.info</code></a>. The man page information of an argument is listed in
+    alphabetical order at the end of the text of the section specified
+    by its <a href="Cmdliner.Arg.html#VALinfo">argument information</a>. Positional arguments are
+    also listed iff both the <code class="code">docv</code> and <code class="code">doc</code> string is specified in
+    their argument information.
+<p>
+
+    If an argument information mentions a section not specified in
+    <a href="Cmdliner.Term.html#VALinfo"><code class="code"><span class="constructor">Cmdliner</span>.<span class="constructor">Term</span>.info</code></a>, an empty section is created for it. This section is
+    inserted just after the <code class="code"><span class="string">"SYNOPSIS"</span></code> section or after a section
+    named <code class="code"><span class="string">"DESCRIPTION"</span></code> if there is one. 
+<p>
+
+    The <code class="code"><span class="string">"SYNOPSIS"</span></code> section of a man page is generated automatically
+    from a term's information and its arguments. To substitute your
+    own instead, start the term's information man page with 
+    a <code class="code"><span class="string">"SYNOPSIS"</span></code> section. 
+<p>
+
+    Ideally all manual strings should be UTF-8 encoded. However at the
+    moment Groff (at least <code class="code">1.19.2</code>) doesn't seem to cope with UTF-8
+    input and UTF-8 characters beyond the ASCII set will look garbled.
+    Regarding UTF-8 output, generating the man page with <code class="code">-<span class="constructor">Tutf8</span></code> maps
+    the hyphen-minus <code class="code"><span class="constructor">U</span>+002<span class="constructor">D</span></code> to the minus sign <code class="code"><span class="constructor">U</span>+2212</code> which makes it 
+    difficult to search it in the pager, so <code class="code">-<span class="constructor">Tascii</span></code> is used for now. 
+    Conclusion is that it may be better to stick to the ASCII set for now. 
+    Please contact the author if something seems wrong in this reasoning 
+    or if you know a work around this.
+<p>
+
+    <h2 id="2_Miscellaneous">Miscellaneous</h2>
+<p>
+
+    <ul>
+<li>The option name <code class="code">--help</code>, (and <code class="code">--version</code> if you specify a 
+       version string) is reserved by the module. Using it as a term or 
+       option name may result in undefined behaviour.</li>
+<li>The evaluation of a term in which the same option name is defined
+       by more than one argument is undefined.</li>
+</ul>
+
+<p>
+
+    <h1 id="cmdline">Command line syntax</h1>
+<p>
+
+    For programs evaluating a single term the most general form of invocation 
+    is:
+    <ul>
+<li><code class="code">prog [<span class="constructor">OPTION</span>]... [<span class="constructor">ARG</span>]...</code></li>
+</ul>
+
+    The program automatically reponds to the <code class="code">--help</code> option by 
+    printing the help. If a version string is provided in 
+    the <a href="Cmdliner.Term.html#tinfo">term information</a>, it also automatically responds
+    to the <code class="code">--version</code> option by printing this string.
+<p>
+
+    Command line arguments are either <a href="Cmdliner.html#optargs"><em>optional</em></a> or
+    <a href="Cmdliner.html#posargs"><em>positional</em></a>. Both can be freely interleaved but
+    since <code class="code"><span class="constructor">Cmdliner</span></code> accepts many optional forms this may result in
+    ambiguities. The special <a href="Cmdliner.html#posargs"> token <code class="code">--</code></a> can be used to resolve 
+    them.
+<p>
+
+    Programs evaluating multiple terms also add this form of invocation:
+    <ul>
+<li><code class="code">prog <span class="constructor">COMMAND</span> [<span class="constructor">OPTION</span>]... [<span class="constructor">ARG</span>]...</code></li>
+</ul>
+
+    Commands automatically respond to the <code class="code">--help</code> option
+    by printing their help. The <code class="code"><span class="constructor">COMMAND</span></code> string must
+    be the first string following the program name and may be specified
+    by a prefix as long as it is not ambiguous. 
+<p>
+
+    <h2 id="optargs">Optional arguments</h2> 
+<p>
+
+    An optional argument is specified on the command line by a <em>    name</em> possibly followed by a <em>value</em>.
+<p>
+
+    The name of an option can be short or long.
+    <ul>
+<li>A <em>short</em> name is a dash followed by a single alphanumeric 
+       character: <code class="code"><span class="string">"-h"</span></code>, <code class="code"><span class="string">"-q"</span></code>, <code class="code"><span class="string">"-I"</span></code>.</li>
+<li>A <em>long</em> name is two dashes followed by alphanumeric 
+       characters and dashes: <code class="code"><span class="string">"--help"</span></code>, <code class="code"><span class="string">"--silent"</span></code>, <code class="code"><span class="string">"--ignore-case"</span></code>.</li>
+</ul>
+
+<p>
+
+    More than one name may refer to the same optional argument.  For
+    example in a given program the names <code class="code"><span class="string">"-q"</span></code>, <code class="code"><span class="string">"--quiet"</span></code> and
+    <code class="code"><span class="string">"--silent"</span></code> may all stand for the same boolean argument
+    indicating the program to be quiet.  Long names
+    can be specified by any non ambiguous prefix. 
+<p>
+
+    The value of an option can be specified in three different ways.
+    <ul>
+<li>As the next token on the command line: <code class="code"><span class="string">"-o a.out"</span></code>, 
+       <code class="code"><span class="string">"--output a.out"</span></code>.</li>
+<li>Glued to a short name: <code class="code"><span class="string">"-oa.out"</span></code>.</li>
+<li>Glued to a long name after an equal character:
+    <code class="code"><span class="string">"--output=a.out"</span></code>.</li>
+</ul>
+
+    Glued forms are especially useful if
+    the value itself starts with a dash as is the case for negative numbers,
+    <code class="code"><span class="string">"--min=-10"</span></code>.
+<p>
+
+    An optional argument without a value is either a <em>flag</em> 
+    (see <a href="Cmdliner.Arg.html#VALflag"><code class="code"><span class="constructor">Cmdliner</span>.<span class="constructor">Arg</span>.flag</code></a>, <a href="Cmdliner.Arg.html#VALvflag"><code class="code"><span class="constructor">Cmdliner</span>.<span class="constructor">Arg</span>.vflag</code></a>) or an optional argument with an optional 
+    value (see the <code class="code">~vopt</code> argument of <a href="Cmdliner.Arg.html#VALopt"><code class="code"><span class="constructor">Cmdliner</span>.<span class="constructor">Arg</span>.opt</code></a>). 
+<p>
+
+    <h2 id="posargs">Positional arguments</h2>
+<p>
+
+    Positional arguments are tokens on the command line that are not
+    option names and are not the value of an optional argument. They
+    are numbered from left to right starting with zero.
+<p>
+
+    Since positional arguments may be mistaken as the optional value
+    of an optional argument or they may need to look like option
+    names, anything that follows the special token <code class="code"><span class="string">"--"</span></code> on the command
+    line is considered to be a positional argument.
+<p>
+
+    <h1 id="examples">Examples</h1>
+<p>
+
+    These examples are in the <code class="code">test</code> directory of the distribution.
+<p>
+
+ <h2 id="exrm">A <code class="code">rm</code> command</h2> 
+<p>
+
+    We define the command line interface of a
+    <code class="code">rm</code> command with the synopsis:
+<pre class="codepre"><code class="code">rm&nbsp;[<span class="constructor">OPTION</span>]...&nbsp;<span class="constructor">FILE</span>...<br>
+</code></pre>
+    The <code class="code">-f</code>, <code class="code">-i</code> and <code class="code">-<span class="constructor">I</span></code> flags define the prompt behaviour of <code class="code">rm</code>,
+    represented in our program by the <code class="code">prompt</code> type. If more than one
+    of these flags is present on the command line the last one takes
+    precedence.
+<p>
+
+    To implement this behaviour we map the presence of these flags
+    to values of the <code class="code">prompt</code> type by using <a href="Cmdliner.Arg.html#VALvflag_all"><code class="code"><span class="constructor">Cmdliner</span>.<span class="constructor">Arg</span>.vflag_all</code></a>.  This
+    argument will contain all occurences of the flag on the command
+    line and we just take the <a href="Cmdliner.Arg.html#VALlast"><code class="code"><span class="constructor">Cmdliner</span>.<span class="constructor">Arg</span>.last</code></a> one to define our term value
+    (if there's no occurence the last value of the default list <code class="code">[<span class="constructor">Always</span>]</code> is
+    taken, i.e. the default is <code class="code"><span class="constructor">Always</span></code>).
+<pre class="codepre"><code class="code"><span class="comment">(*&nbsp;Implementation&nbsp;of&nbsp;the&nbsp;command,&nbsp;we&nbsp;just&nbsp;print&nbsp;the&nbsp;args.&nbsp;*)</span><br>
+<br>
+<span class="keyword">type</span>&nbsp;prompt&nbsp;=&nbsp;<span class="constructor">Always</span>&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">Once</span>&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">Never</span><br>
+<span class="keyword">let</span>&nbsp;prompt_str&nbsp;=&nbsp;<span class="keyword">function</span>&nbsp;<br>
+<span class="keywordsign">|</span>&nbsp;<span class="constructor">Always</span>&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="string">"always"</span>&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">Once</span>&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="string">"once"</span>&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">Never</span>&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="string">"never"</span><br>
+<br>
+<span class="keyword">let</span>&nbsp;rm&nbsp;prompt&nbsp;recurse&nbsp;files&nbsp;=<br>
+&nbsp;&nbsp;<span class="constructor">Printf</span>.printf&nbsp;<span class="string">"prompt&nbsp;=&nbsp;%s\nrecurse&nbsp;=&nbsp;%b\nfiles&nbsp;=&nbsp;%s\n"</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;(prompt_str&nbsp;prompt)&nbsp;recurse&nbsp;(<span class="constructor">String</span>.concat&nbsp;<span class="string">",&nbsp;"</span>&nbsp;files)<br>
+<br>
+<span class="comment">(*&nbsp;Command&nbsp;line&nbsp;interface&nbsp;*)</span><br>
+<br>
+<span class="keyword">open</span>&nbsp;<span class="constructor">Cmdliner</span>;;<br>
+<br>
+<span class="keyword">let</span>&nbsp;files&nbsp;=&nbsp;<span class="constructor">Arg</span>.(non_empty&nbsp;<span class="keywordsign">&amp;</span>&nbsp;pos_all&nbsp;file&nbsp;[]&nbsp;<span class="keywordsign">&amp;</span>&nbsp;info&nbsp;[]&nbsp;~docv:<span class="string">"FILE"</span>)<br>
+<span class="keyword">let</span>&nbsp;prompt&nbsp;=<br>
+&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;doc&nbsp;=&nbsp;<span class="string">"Prompt&nbsp;before&nbsp;every&nbsp;removal."</span>&nbsp;<span class="keyword">in</span>&nbsp;&nbsp;<br>
+&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;always&nbsp;=&nbsp;<span class="constructor">Always</span>,&nbsp;<span class="constructor">Arg</span>.info&nbsp;[<span class="string">"i"</span>]&nbsp;~doc&nbsp;<span class="keyword">in</span><br>
+&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;doc&nbsp;=&nbsp;<span class="string">"Ignore&nbsp;nonexistent&nbsp;files&nbsp;and&nbsp;never&nbsp;prompt."</span>&nbsp;<span class="keyword">in</span><br>
+&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;never&nbsp;=&nbsp;<span class="constructor">Never</span>,&nbsp;<span class="constructor">Arg</span>.info&nbsp;[<span class="string">"f"</span>;&nbsp;<span class="string">"force"</span>]&nbsp;~doc&nbsp;<span class="keyword">in</span><br>
+&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;doc&nbsp;=&nbsp;<span class="string">"Prompt&nbsp;once&nbsp;before&nbsp;removing&nbsp;more&nbsp;than&nbsp;three&nbsp;files,&nbsp;or&nbsp;when<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;removing&nbsp;recursively.&nbsp;Less&nbsp;intrusive&nbsp;than&nbsp;$(b,-i),&nbsp;while&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;still&nbsp;giving&nbsp;protection&nbsp;against&nbsp;most&nbsp;mistakes."</span>&nbsp;<br>
+&nbsp;&nbsp;<span class="keyword">in</span><br>
+&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;once&nbsp;=&nbsp;<span class="constructor">Once</span>,&nbsp;<span class="constructor">Arg</span>.info&nbsp;[<span class="string">"I"</span>]&nbsp;~doc&nbsp;<span class="keyword">in</span><br>
+&nbsp;&nbsp;<span class="constructor">Arg</span>.(last&nbsp;<span class="keywordsign">&amp;</span>&nbsp;vflag_all&nbsp;[<span class="constructor">Always</span>]&nbsp;[always;&nbsp;never;&nbsp;once])<br>
+<br>
+<span class="keyword">let</span>&nbsp;recursive&nbsp;=&nbsp;<br>
+&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;doc&nbsp;=&nbsp;<span class="string">"Remove&nbsp;directories&nbsp;and&nbsp;their&nbsp;contents&nbsp;recursively."</span>&nbsp;<span class="keyword">in</span><br>
+&nbsp;&nbsp;<span class="constructor">Arg</span>.(value&nbsp;<span class="keywordsign">&amp;</span>&nbsp;flag&nbsp;<span class="keywordsign">&amp;</span>&nbsp;info&nbsp;[<span class="string">"r"</span>;&nbsp;<span class="string">"R"</span>;&nbsp;<span class="string">"recursive"</span>]&nbsp;~doc)<br>
+<br>
+<span class="keyword">let</span>&nbsp;cmd&nbsp;=&nbsp;<br>
+&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;doc&nbsp;=&nbsp;<span class="string">"remove&nbsp;files&nbsp;or&nbsp;directories"</span>&nbsp;<span class="keyword">in</span>&nbsp;<br>
+&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;man&nbsp;=&nbsp;[<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">`</span><span class="constructor">S</span>&nbsp;<span class="string">"DESCRIPTION"</span>;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">`</span><span class="constructor">P</span>&nbsp;<span class="string">"$(tname)&nbsp;removes&nbsp;each&nbsp;specified&nbsp;$(i,FILE).&nbsp;By&nbsp;default&nbsp;it&nbsp;does&nbsp;not&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;remove&nbsp;directories,&nbsp;to&nbsp;also&nbsp;remove&nbsp;them&nbsp;and&nbsp;their&nbsp;contents,&nbsp;use&nbsp;the<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;option&nbsp;$(b,--recursive)&nbsp;($(b,-r)&nbsp;or&nbsp;$(b,-R))."</span>;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">`</span><span class="constructor">P</span>&nbsp;<span class="string">"To&nbsp;remove&nbsp;a&nbsp;file&nbsp;whose&nbsp;name&nbsp;starts&nbsp;with&nbsp;a&nbsp;`-',&nbsp;for&nbsp;example<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;`-foo',&nbsp;use&nbsp;one&nbsp;of&nbsp;these&nbsp;commands:"</span>;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">`</span><span class="constructor">P</span>&nbsp;<span class="string">"rm&nbsp;--&nbsp;-foo"</span>;&nbsp;<span class="keywordsign">`</span><span class="constructor">Noblank</span>;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">`</span><span class="constructor">P</span>&nbsp;<span class="string">"rm&nbsp;./-foo"</span>;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">`</span><span class="constructor">P</span>&nbsp;<span class="string">"$(tname)&nbsp;removes&nbsp;symbolic&nbsp;links,&nbsp;not&nbsp;the&nbsp;files&nbsp;referenced&nbsp;by&nbsp;the&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;links."</span>;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">`</span><span class="constructor">S</span>&nbsp;<span class="string">"BUGS"</span>;&nbsp;<span class="keywordsign">`</span><span class="constructor">P</span>&nbsp;<span class="string">"Report&nbsp;bugs&nbsp;to&nbsp;&lt;hehey&nbsp;at&nbsp;example.org&gt;."</span>;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">`</span><span class="constructor">S</span>&nbsp;<span class="string">"SEE&nbsp;ALSO"</span>;&nbsp;<span class="keywordsign">`</span><span class="constructor">P</span>&nbsp;<span class="string">"$(b,rmdir)(1),&nbsp;$(b,unlink)(2)"</span>&nbsp;]&nbsp;<br>
+&nbsp;&nbsp;<span class="keyword">in</span><br>
+&nbsp;&nbsp;<span class="constructor">Term</span>.(pure&nbsp;rm&nbsp;$&nbsp;prompt&nbsp;$&nbsp;recursive&nbsp;$&nbsp;files),<br>
+&nbsp;&nbsp;<span class="constructor">Term</span>.info&nbsp;<span class="string">"rm"</span>&nbsp;~version:<span class="string">"1.6.1"</span>&nbsp;~doc&nbsp;~man<br>
+<br>
+<span class="keyword">let</span>&nbsp;()&nbsp;=&nbsp;<span class="keyword">match</span>&nbsp;<span class="constructor">Term</span>.eval&nbsp;cmd&nbsp;<span class="keyword">with</span>&nbsp;<span class="keywordsign">`</span><span class="constructor">Error</span>&nbsp;_&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;exit&nbsp;1&nbsp;<span class="keywordsign">|</span>&nbsp;_&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;exit&nbsp;0<br>
+</code></pre>
+    <h2 id="excp">A <code class="code">cp</code> command</h2> 
+<p>
+
+    We define the command line interface of a
+    <code class="code">cp</code> command with the synopsis:
+<pre class="codepre"><code class="code">cp&nbsp;[<span class="constructor">OPTION</span>]...&nbsp;<span class="constructor">SOURCE</span>...&nbsp;<span class="constructor">DEST</span>&nbsp;</code></pre>
+    The <code class="code"><span class="constructor">DEST</span></code> argument must be a directory if there is more than 
+    one <code class="code"><span class="constructor">SOURCE</span></code>. This constraint is too complex to be expressed by the
+    combinators of <a href="Cmdliner.Arg.html"><code class="code"><span class="constructor">Cmdliner</span>.<span class="constructor">Arg</span></code></a>. Hence we just give it the <a href="Cmdliner.Arg.html#VALstring"><code class="code"><span class="constructor">Cmdliner</span>.<span class="constructor">Arg</span>.string</code></a> type
+    and verify the constraint at the beginning of the <code class="code">cp</code>
+    implementation. If unsatisfied we return an <code class="code"><span class="keywordsign">`</span><span class="constructor">Error</span></code> and
+    by using <a href="Cmdliner.Term.html#VALret"><code class="code"><span class="constructor">Cmdliner</span>.<span class="constructor">Term</span>.ret</code></a> on the lifted result <code class="code">cp_t</code> of <code class="code">cp</code>, 
+    <code class="code"><span class="constructor">Cmdliner</span></code> handles the error reporting.
+<pre class="codepre"><code class="code"><span class="comment">(*&nbsp;Implementation,&nbsp;we&nbsp;check&nbsp;the&nbsp;dest&nbsp;argument&nbsp;and&nbsp;print&nbsp;the&nbsp;args&nbsp;*)</span><br>
+<br>
+<span class="keyword">let</span>&nbsp;cp&nbsp;verbose&nbsp;recurse&nbsp;force&nbsp;srcs&nbsp;dest&nbsp;=<br>
+&nbsp;&nbsp;<span class="keyword">if</span>&nbsp;<span class="constructor">List</span>.length&nbsp;srcs&nbsp;&gt;&nbsp;1&nbsp;<span class="keywordsign">&amp;&amp;</span>&nbsp;<br>
+&nbsp;&nbsp;(not&nbsp;(<span class="constructor">Sys</span>.file_exists&nbsp;dest)&nbsp;<span class="keywordsign">||</span>&nbsp;not&nbsp;(<span class="constructor">Sys</span>.is_directory&nbsp;dest))&nbsp;<br>
+&nbsp;&nbsp;<span class="keyword">then</span>&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">`</span><span class="constructor">Error</span>&nbsp;(<span class="keyword">false</span>,&nbsp;dest&nbsp;^&nbsp;<span class="string">"&nbsp;is&nbsp;not&nbsp;a&nbsp;directory"</span>)&nbsp;<br>
+&nbsp;&nbsp;<span class="keyword">else</span>&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">`</span><span class="constructor">Ok</span>&nbsp;(<span class="constructor">Printf</span>.printf&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="string">"verbose&nbsp;=&nbsp;%b\nrecurse&nbsp;=&nbsp;%b\nforce&nbsp;=&nbsp;%b\nsrcs&nbsp;=&nbsp;%s\ndest&nbsp;=&nbsp;%s\n"</span>&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;verbose&nbsp;recurse&nbsp;force&nbsp;(<span class="constructor">String</span>.concat&nbsp;<span class="string">",&nbsp;"</span>&nbsp;srcs)&nbsp;dest)<br>
+<br>
+<span class="comment">(*&nbsp;Command&nbsp;line&nbsp;interface&nbsp;*)</span><br>
+<br>
+<span class="keyword">open</span>&nbsp;<span class="constructor">Cmdliner</span>;;<br>
+<br>
+<span class="keyword">let</span>&nbsp;verbose&nbsp;=&nbsp;<br>
+&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;doc&nbsp;=&nbsp;<span class="string">"Print&nbsp;file&nbsp;names&nbsp;as&nbsp;they&nbsp;are&nbsp;copied."</span>&nbsp;<span class="keyword">in</span><br>
+&nbsp;&nbsp;<span class="constructor">Arg</span>.(value&nbsp;<span class="keywordsign">&amp;</span>&nbsp;flag&nbsp;<span class="keywordsign">&amp;</span>&nbsp;info&nbsp;[<span class="string">"v"</span>;&nbsp;<span class="string">"verbose"</span>]&nbsp;~doc)&nbsp;<br>
+<br>
+<span class="keyword">let</span>&nbsp;recurse&nbsp;=&nbsp;<br>
+&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;doc&nbsp;=&nbsp;<span class="string">"Copy&nbsp;directories&nbsp;recursively."</span>&nbsp;<span class="keyword">in</span><br>
+&nbsp;&nbsp;<span class="constructor">Arg</span>.(value&nbsp;<span class="keywordsign">&amp;</span>&nbsp;flag&nbsp;<span class="keywordsign">&amp;</span>&nbsp;info&nbsp;[<span class="string">"r"</span>;&nbsp;<span class="string">"R"</span>;&nbsp;<span class="string">"recursive"</span>]&nbsp;~doc)<br>
+<br>
+<span class="keyword">let</span>&nbsp;force&nbsp;=&nbsp;<br>
+&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;doc&nbsp;=&nbsp;<span class="string">"If&nbsp;a&nbsp;destination&nbsp;file&nbsp;cannot&nbsp;be&nbsp;opened,&nbsp;remove&nbsp;it&nbsp;and&nbsp;try&nbsp;again."</span><span class="keyword">in</span><br>
+&nbsp;&nbsp;<span class="constructor">Arg</span>.(value&nbsp;<span class="keywordsign">&amp;</span>&nbsp;flag&nbsp;<span class="keywordsign">&amp;</span>&nbsp;info&nbsp;[<span class="string">"f"</span>;&nbsp;<span class="string">"force"</span>]&nbsp;~doc)<br>
+<br>
+<span class="keyword">let</span>&nbsp;srcs&nbsp;=&nbsp;<br>
+&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;doc&nbsp;=&nbsp;<span class="string">"Source&nbsp;file(s)&nbsp;to&nbsp;copy."</span>&nbsp;<span class="keyword">in</span><br>
+&nbsp;&nbsp;<span class="constructor">Arg</span>.(non_empty&nbsp;<span class="keywordsign">&amp;</span>&nbsp;pos_left&nbsp;~rev:<span class="keyword">true</span>&nbsp;0&nbsp;file&nbsp;[]&nbsp;<span class="keywordsign">&amp;</span>&nbsp;info&nbsp;[]&nbsp;~docv:<span class="string">"SOURCE"</span>&nbsp;~doc)&nbsp;<br>
+<br>
+<span class="keyword">let</span>&nbsp;dest&nbsp;=&nbsp;<br>
+&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;doc&nbsp;=&nbsp;<span class="string">"Destination&nbsp;of&nbsp;the&nbsp;copy.&nbsp;Must&nbsp;be&nbsp;a&nbsp;directory&nbsp;if&nbsp;there&nbsp;is&nbsp;more&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;than&nbsp;one&nbsp;$(i,SOURCE)."</span>&nbsp;<span class="keyword">in</span><br>
+&nbsp;&nbsp;<span class="constructor">Arg</span>.(required&nbsp;<span class="keywordsign">&amp;</span>&nbsp;pos&nbsp;~rev:<span class="keyword">true</span>&nbsp;0&nbsp;(some&nbsp;string)&nbsp;<span class="constructor">None</span>&nbsp;<span class="keywordsign">&amp;</span>&nbsp;info&nbsp;[]&nbsp;~docv:<span class="string">"DEST"</span>&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;~doc)<br>
+<br>
+<span class="keyword">let</span>&nbsp;cmd&nbsp;=&nbsp;<br>
+&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;doc&nbsp;=&nbsp;<span class="string">"copy&nbsp;files"</span>&nbsp;<span class="keyword">in</span><br>
+&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;man&nbsp;=&nbsp;[<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">`</span><span class="constructor">S</span>&nbsp;<span class="string">"BUGS"</span>;&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">`</span><span class="constructor">P</span>&nbsp;<span class="string">"Email&nbsp;them&nbsp;to&nbsp;&lt;hehey&nbsp;at&nbsp;example.org&gt;."</span>;&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">`</span><span class="constructor">S</span>&nbsp;<span class="string">"SEE&nbsp;ALSO"</span>;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">`</span><span class="constructor">P</span>&nbsp;<span class="string">"$(b,mv)(1),&nbsp;$(b,scp)(1),&nbsp;$(b,umask)(2),&nbsp;$(b,symlink)(7)"</span>&nbsp;]<br>
+&nbsp;&nbsp;<span class="keyword">in</span><br>
+&nbsp;&nbsp;<span class="constructor">Term</span>.(ret&nbsp;(pure&nbsp;cp&nbsp;$&nbsp;verbose&nbsp;$&nbsp;recurse&nbsp;$&nbsp;force&nbsp;$&nbsp;srcs&nbsp;$&nbsp;dest)),&nbsp;<br>
+&nbsp;&nbsp;<span class="constructor">Term</span>.info&nbsp;<span class="string">"cp"</span>&nbsp;~version:<span class="string">"1.6.1"</span>&nbsp;~doc&nbsp;~man<br>
+<br>
+<span class="keyword">let</span>&nbsp;()&nbsp;=&nbsp;<span class="keyword">match</span>&nbsp;<span class="constructor">Term</span>.eval&nbsp;cmd&nbsp;<span class="keyword">with</span>&nbsp;<span class="keywordsign">`</span><span class="constructor">Error</span>&nbsp;_&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;exit&nbsp;1&nbsp;<span class="keywordsign">|</span>&nbsp;_&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;exit&nbsp;0<br>
+</code></pre>
+<p>
+
+<h2 id="extail">A <code class="code">tail</code> command</h2>
+<p>
+
+We define the command line interface of a <code class="code">tail</code> command with the 
+synopsis:
+<pre class="codepre"><code class="code">tail&nbsp;[<span class="constructor">OPTION</span>]...&nbsp;[<span class="constructor">FILE</span>]...</code></pre>
+<p>
+
+The <code class="code">--lines</code> option whose value specifies the number of last lines to
+print has a special syntax where a <code class="code">+</code> prefix indicates to start
+printing from that line number. In the program this is represented by
+the <code class="code">loc</code> type. We define a custom <code class="code">loc</code> <a href="Cmdliner.Arg.html#argconv">argument converter</a> 
+for this option.
+<p>
+
+The <code class="code">--follow</code> option has an optional enumerated value. The argument
+converter <code class="code">follow</code>, created with <a href="Cmdliner.Arg.html#VALenum"><code class="code"><span class="constructor">Cmdliner</span>.<span class="constructor">Arg</span>.enum</code></a> parses the option value
+into the enumeration. By using <a href="Cmdliner.Arg.html#VALsome"><code class="code"><span class="constructor">Cmdliner</span>.<span class="constructor">Arg</span>.some</code></a> and the <code class="code">~vopt</code> argument of
+<a href="Cmdliner.Arg.html#VALopt"><code class="code"><span class="constructor">Cmdliner</span>.<span class="constructor">Arg</span>.opt</code></a>, the term corresponding to the option <code class="code">--follow</code> evaluates to
+<code class="code"><span class="constructor">None</span></code> if <code class="code">--follow</code> is absent from the command line, to <code class="code"><span class="constructor">Some</span> <span class="constructor">Descriptor</span></code>
+if present but without a value and to <code class="code"><span class="constructor">Some</span> v</code> if present with a value
+<code class="code">v</code> specified.
+<p>
+
+<pre class="codepre"><code class="code"><span class="comment">(*&nbsp;Implementation&nbsp;of&nbsp;the&nbsp;command,&nbsp;we&nbsp;just&nbsp;print&nbsp;the&nbsp;args.&nbsp;*)</span><br>
+<br>
+<span class="keyword">type</span>&nbsp;loc&nbsp;=&nbsp;bool&nbsp;*&nbsp;int<br>
+<span class="keyword">type</span>&nbsp;verb&nbsp;=&nbsp;<span class="constructor">Verbose</span>&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">Quiet</span>&nbsp;<br>
+<span class="keyword">type</span>&nbsp;follow&nbsp;=&nbsp;<span class="constructor">Name</span>&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">Descriptor</span><br>
+<br>
+<span class="keyword">let</span>&nbsp;str&nbsp;=&nbsp;<span class="constructor">Printf</span>.sprintf&nbsp;<br>
+<span class="keyword">let</span>&nbsp;opt_str&nbsp;sv&nbsp;=&nbsp;<span class="keyword">function</span>&nbsp;<span class="constructor">None</span>&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="string">"None"</span>&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">Some</span>&nbsp;v&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;str&nbsp;<span class="string">"Some(%s)"</span>&nbsp;(sv&nbsp;v)<br>
+<span class="keyword">let</span>&nbsp;loc_str&nbsp;(rev,&nbsp;k)&nbsp;=&nbsp;<span class="keyword">if</span>&nbsp;rev&nbsp;<span class="keyword">then</span>&nbsp;str&nbsp;<span class="string">"%d"</span>&nbsp;k&nbsp;<span class="keyword">else</span>&nbsp;str&nbsp;<span class="string">"+%d"</span>&nbsp;k<br>
+<span class="keyword">let</span>&nbsp;follow_str&nbsp;=&nbsp;<span class="keyword">function</span>&nbsp;<span class="constructor">Name</span>&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="string">"name"</span>&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">Descriptor</span>&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="string">"descriptor"</span><br>
+<span class="keyword">let</span>&nbsp;verb_str&nbsp;=&nbsp;<span class="keyword">function</span>&nbsp;<span class="constructor">Verbose</span>&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="string">"verbose"</span>&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">Quiet</span>&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="string">"quiet"</span><br>
+<br>
+<span class="keyword">let</span>&nbsp;tail&nbsp;lines&nbsp;follow&nbsp;verb&nbsp;pid&nbsp;files&nbsp;=&nbsp;<br>
+&nbsp;&nbsp;<span class="constructor">Printf</span>.printf&nbsp;<span class="string">"lines&nbsp;=&nbsp;%s\nfollow&nbsp;=&nbsp;%s\nverb&nbsp;=&nbsp;%s\npid&nbsp;=&nbsp;%s\nfiles&nbsp;=&nbsp;%s\n"</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;(loc_str&nbsp;lines)&nbsp;(opt_str&nbsp;follow_str&nbsp;follow)&nbsp;(verb_str&nbsp;verb)&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;(opt_str&nbsp;string_of_int&nbsp;pid)&nbsp;(<span class="constructor">String</span>.concat&nbsp;<span class="string">",&nbsp;"</span>&nbsp;files)<br>
+<br>
+<span class="comment">(*&nbsp;Command&nbsp;line&nbsp;interface&nbsp;*)</span><br>
+<br>
+<span class="keyword">open</span>&nbsp;<span class="constructor">Cmdliner</span>;;<br>
+<br>
+<span class="keyword">let</span>&nbsp;lines&nbsp;=&nbsp;<br>
+&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;loc&nbsp;=<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;parse&nbsp;s&nbsp;=&nbsp;<span class="keyword">try</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">if</span>&nbsp;s&nbsp;&lt;&gt;&nbsp;<span class="string">""</span>&nbsp;<span class="keywordsign">&amp;&amp;</span>&nbsp;s.[0]&nbsp;&lt;&gt;&nbsp;<span class="string">'+'</span>&nbsp;<span class="keyword">then</span>&nbsp;<span class="keywordsign">`</span><span class="constructor">Ok</span>&nbsp;(<span class="keyword">true</span>,&nbsp;int_of_string&nbsp;s)&nbsp;<span class="keyword">else</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">`</span><span class="constructor">Ok</span>&nbsp;(<span class="keyword">false</span>,&nbsp;int_of_string&nbsp;(<span class="constructor">String</span>.sub&nbsp;s&nbsp;1&nbsp;(<span class="constructor">String</span>.length&nbsp;s&nbsp;-&nbsp;1)))&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">with</span>&nbsp;<span class="constructor">Failure</span>&nbsp;_&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="keywordsign">`</span><span class="constructor">Error</span>&nbsp;<span class="string">"unable&nbsp;to&nbsp;parse&nbsp;integer"</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">in</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;parse,&nbsp;<span class="keyword">fun</span>&nbsp;ppf&nbsp;p&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Format</span>.fprintf&nbsp;ppf&nbsp;<span class="string">"%s"</span>&nbsp;(loc_str&nbsp;p)<br>
+&nbsp;&nbsp;<span class="keyword">in</span><br>
+&nbsp;&nbsp;<span class="constructor">Arg</span>.(value&nbsp;<span class="keywordsign">&amp;</span>&nbsp;opt&nbsp;loc&nbsp;(<span class="keyword">true</span>,&nbsp;10)&nbsp;<span class="keywordsign">&amp;</span>&nbsp;info&nbsp;[<span class="string">"n"</span>;&nbsp;<span class="string">"lines"</span>]&nbsp;~docv:<span class="string">"N"</span>&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;~doc:<span class="string">"Output&nbsp;the&nbsp;last&nbsp;$(docv)&nbsp;lines&nbsp;or&nbsp;use&nbsp;$(i,+)$(docv)&nbsp;to&nbsp;start&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;output&nbsp;after&nbsp;the&nbsp;$(i,N)-1th&nbsp;line."</span>)&nbsp;<br>
+<span class="keyword">let</span>&nbsp;follow&nbsp;=&nbsp;<br>
+&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;doc&nbsp;=&nbsp;<span class="string">"Output&nbsp;appended&nbsp;data&nbsp;as&nbsp;the&nbsp;file&nbsp;grows.&nbsp;$(docv)&nbsp;specifies&nbsp;how&nbsp;the<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;file&nbsp;should&nbsp;be&nbsp;tracked,&nbsp;by&nbsp;its&nbsp;`name'&nbsp;or&nbsp;by&nbsp;its&nbsp;`descriptor'."</span>&nbsp;<span class="keyword">in</span><br>
+&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;follow&nbsp;=&nbsp;<span class="constructor">Arg</span>.enum&nbsp;[<span class="string">"name"</span>,&nbsp;<span class="constructor">Name</span>;&nbsp;<span class="string">"descriptor"</span>,&nbsp;<span class="constructor">Descriptor</span>]&nbsp;<span class="keyword">in</span><br>
+&nbsp;&nbsp;<span class="constructor">Arg</span>.(value&nbsp;<span class="keywordsign">&amp;</span>&nbsp;opt&nbsp;(some&nbsp;follow)&nbsp;~vopt:(<span class="constructor">Some</span>&nbsp;<span class="constructor">Descriptor</span>)&nbsp;<span class="constructor">None</span>&nbsp;<span class="keywordsign">&amp;</span>&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;info&nbsp;[<span class="string">"f"</span>;&nbsp;<span class="string">"follow"</span>]&nbsp;~docv:<span class="string">"ID"</span>&nbsp;~doc)&nbsp;<br>
+<br>
+<span class="keyword">let</span>&nbsp;verb&nbsp;=&nbsp;<br>
+&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;doc&nbsp;=&nbsp;<span class="string">"Never&nbsp;output&nbsp;headers&nbsp;giving&nbsp;file&nbsp;names."</span>&nbsp;<span class="keyword">in</span>&nbsp;<br>
+&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;quiet&nbsp;=&nbsp;<span class="constructor">Quiet</span>,&nbsp;<span class="constructor">Arg</span>.info&nbsp;[<span class="string">"q"</span>;&nbsp;<span class="string">"quiet"</span>;&nbsp;<span class="string">"silent"</span>]&nbsp;~doc&nbsp;<span class="keyword">in</span>&nbsp;<br>
+&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;doc&nbsp;=&nbsp;<span class="string">"Always&nbsp;output&nbsp;headers&nbsp;giving&nbsp;file&nbsp;names."</span>&nbsp;<span class="keyword">in</span><br>
+&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;verbose&nbsp;=&nbsp;<span class="constructor">Verbose</span>,&nbsp;<span class="constructor">Arg</span>.info&nbsp;[<span class="string">"v"</span>;&nbsp;<span class="string">"verbose"</span>]&nbsp;~doc&nbsp;<span class="keyword">in</span>&nbsp;<br>
+&nbsp;&nbsp;<span class="constructor">Arg</span>.(last&nbsp;<span class="keywordsign">&amp;</span>&nbsp;vflag_all&nbsp;[<span class="constructor">Quiet</span>]&nbsp;[quiet;&nbsp;verbose])<br>
+<br>
+<span class="keyword">let</span>&nbsp;pid&nbsp;=&nbsp;<br>
+&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;doc&nbsp;=&nbsp;<span class="string">"With&nbsp;-f,&nbsp;terminate&nbsp;after&nbsp;process&nbsp;$(docv)&nbsp;dies."</span>&nbsp;<span class="keyword">in</span><br>
+&nbsp;&nbsp;<span class="constructor">Arg</span>.(value&nbsp;<span class="keywordsign">&amp;</span>&nbsp;opt&nbsp;(some&nbsp;int)&nbsp;<span class="constructor">None</span>&nbsp;<span class="keywordsign">&amp;</span>&nbsp;info&nbsp;[<span class="string">"pid"</span>]&nbsp;~docv:<span class="string">"PID"</span>&nbsp;~doc)<br>
+<br>
+<span class="keyword">let</span>&nbsp;files&nbsp;=&nbsp;<span class="constructor">Arg</span>.(value&nbsp;<span class="keywordsign">&amp;</span>&nbsp;(pos_all&nbsp;non_dir_file&nbsp;[])&nbsp;<span class="keywordsign">&amp;</span>&nbsp;info&nbsp;[]&nbsp;~docv:<span class="string">"FILE"</span>)<br>
+<br>
+<span class="keyword">let</span>&nbsp;cmd&nbsp;=&nbsp;<br>
+&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;doc&nbsp;=&nbsp;<span class="string">"display&nbsp;the&nbsp;last&nbsp;part&nbsp;of&nbsp;a&nbsp;file"</span>&nbsp;<span class="keyword">in</span><br>
+&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;man&nbsp;=&nbsp;[<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">`</span><span class="constructor">S</span>&nbsp;<span class="string">"DESCRIPTION"</span>;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">`</span><span class="constructor">P</span>&nbsp;<span class="string">"$(tname)&nbsp;prints&nbsp;the&nbsp;last&nbsp;lines&nbsp;of&nbsp;each&nbsp;$(i,FILE)&nbsp;to&nbsp;standard&nbsp;output.&nbsp;If<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;no&nbsp;file&nbsp;is&nbsp;specified&nbsp;reads&nbsp;standard&nbsp;input.&nbsp;The&nbsp;number&nbsp;of&nbsp;printed<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;lines&nbsp;can&nbsp;be&nbsp;&nbsp;specified&nbsp;with&nbsp;the&nbsp;$(b,-n)&nbsp;option."</span>;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">`</span><span class="constructor">S</span>&nbsp;<span class="string">"BUGS"</span>;&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">`</span><span class="constructor">P</span>&nbsp;<span class="string">"Report&nbsp;them&nbsp;to&nbsp;&lt;hehey&nbsp;at&nbsp;example.org&gt;."</span>;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">`</span><span class="constructor">S</span>&nbsp;<span class="string">"SEE&nbsp;ALSO"</span>;&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">`</span><span class="constructor">P</span>&nbsp;<span class="string">"$(b,cat)(1),&nbsp;$(b,head)(1)"</span>&nbsp;]<br>
+&nbsp;&nbsp;<span class="keyword">in</span><br>
+&nbsp;&nbsp;<span class="constructor">Term</span>.(pure&nbsp;tail&nbsp;$&nbsp;lines&nbsp;$&nbsp;follow&nbsp;$&nbsp;verb&nbsp;$&nbsp;pid&nbsp;$&nbsp;files),<br>
+&nbsp;&nbsp;<span class="constructor">Term</span>.info&nbsp;<span class="string">"tail"</span>&nbsp;~version:<span class="string">"1.6.1"</span>&nbsp;~doc&nbsp;~man<br>
+<br>
+<span class="keyword">let</span>&nbsp;()&nbsp;=&nbsp;<span class="keyword">match</span>&nbsp;<span class="constructor">Term</span>.eval&nbsp;cmd&nbsp;<span class="keyword">with</span>&nbsp;<span class="keywordsign">`</span><span class="constructor">Error</span>&nbsp;_&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;exit&nbsp;1&nbsp;<span class="keywordsign">|</span>&nbsp;_&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;exit&nbsp;0<br>
+</code></pre>
+<p>
+
+<h2 id="exdarcs">A <code class="code">darcs</code> command</h2>
+<p>
+
+We define the command line interface of a <code class="code">darcs</code> command with the synopsis:
+<pre class="codepre"><code class="code">darcs&nbsp;[<span class="constructor">COMMAND</span>]&nbsp;...</code></pre>
+<p>
+
+The <code class="code">--debug</code>, <code class="code">-q</code>, <code class="code">-v</code> and <code class="code">--prehook</code> options are available in
+each command.  To avoid having to pass them individually to each
+command we gather them in a record of type <code class="code">copts</code>. By lifting the
+record constructor <code class="code">copts</code> into the term <code class="code">copts_t</code> we now have a term
+that we can pass to the commands to stand for an argument of type
+<code class="code">copts</code>. These options are documented in a section called <code class="code"><span class="constructor">COMMON</span>
+<span class="constructor">OPTIONS</span></code>, since we also want to put <code class="code">--help</code> and <code class="code">--version</code> in this
+section, the term information of commands makes a judicious use of the
+<code class="code">sdocs</code> parameter of <a href="Cmdliner.Term.html#VALinfo"><code class="code"><span class="constructor">Cmdliner</span>.<span class="constructor">Term</span>.info</code></a>.
+<p>
+
+The <code class="code">help</code> command shows help about commands or other topics. The help
+shown for commands is generated by <code class="code"><span class="constructor">Cmdliner</span></code> by making an approriate
+use of <a href="Cmdliner.Term.html#VALret"><code class="code"><span class="constructor">Cmdliner</span>.<span class="constructor">Term</span>.ret</code></a> on the lifted <code class="code">help</code> function.
+<p>
+
+If the program is invoked without a command we just want to show the
+help of the program as printed by <code class="code"><span class="constructor">Cmdliner</span></code> with <code class="code">--help</code>. This is
+done by the <code class="code">no_cmd</code> term.
+<p>
+
+<pre class="codepre"><code class="code"><span class="comment">(*&nbsp;Implementations,&nbsp;just&nbsp;print&nbsp;the&nbsp;args.&nbsp;*)</span><br>
+<br>
+<span class="keyword">type</span>&nbsp;verb&nbsp;=&nbsp;<span class="constructor">Normal</span>&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">Quiet</span>&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">Verbose</span><br>
+<span class="keyword">type</span>&nbsp;copts&nbsp;=&nbsp;{&nbsp;debug&nbsp;:&nbsp;bool;&nbsp;verb&nbsp;:&nbsp;verb;&nbsp;prehook&nbsp;:&nbsp;string&nbsp;option&nbsp;}<br>
+<br>
+<span class="keyword">let</span>&nbsp;str&nbsp;=&nbsp;<span class="constructor">Printf</span>.sprintf&nbsp;<br>
+<span class="keyword">let</span>&nbsp;opt_str&nbsp;sv&nbsp;=&nbsp;<span class="keyword">function</span>&nbsp;<span class="constructor">None</span>&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="string">"None"</span>&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">Some</span>&nbsp;v&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;str&nbsp;<span class="string">"Some(%s)"</span>&nbsp;(sv&nbsp;v)<br>
+<span class="keyword">let</span>&nbsp;opt_str_str&nbsp;=&nbsp;opt_str&nbsp;(<span class="keyword">fun</span>&nbsp;s&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;s)<br>
+<span class="keyword">let</span>&nbsp;verb_str&nbsp;=&nbsp;<span class="keyword">function</span>&nbsp;<br>
+&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">Normal</span>&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="string">"normal"</span>&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">Quiet</span>&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="string">"quiet"</span>&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="constructor">Verbose</span>&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="string">"verbose"</span><br>
+<br>
+<span class="keyword">let</span>&nbsp;pr_copts&nbsp;oc&nbsp;copts&nbsp;=&nbsp;<span class="constructor">Printf</span>.fprintf&nbsp;oc&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="string">"debug&nbsp;=&nbsp;%b\nverbosity&nbsp;=&nbsp;%s\nprehook&nbsp;=&nbsp;%s\n"</span>&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;copts.debug&nbsp;(verb_str&nbsp;copts.verb)&nbsp;(opt_str_str&nbsp;copts.prehook)<br>
+<br>
+<span class="keyword">let</span>&nbsp;initialize&nbsp;copts&nbsp;repodir&nbsp;=&nbsp;<span class="constructor">Printf</span>.printf<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="string">"%arepodir&nbsp;=&nbsp;%s\n"</span>&nbsp;pr_copts&nbsp;copts&nbsp;repodir<br>
+<br>
+<span class="keyword">let</span>&nbsp;record&nbsp;copts&nbsp;name&nbsp;email&nbsp;all&nbsp;ask_deps&nbsp;files&nbsp;=&nbsp;<span class="constructor">Printf</span>.printf<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="string">"%aname&nbsp;=&nbsp;%s\nemail&nbsp;=&nbsp;%s\nall&nbsp;=&nbsp;%b\nask-deps&nbsp;=&nbsp;%b\nfiles&nbsp;=&nbsp;%s\n"</span>&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;pr_copts&nbsp;copts&nbsp;(opt_str_str&nbsp;name)&nbsp;(opt_str_str&nbsp;email)&nbsp;all&nbsp;ask_deps&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;(<span class="constructor">String</span>.concat&nbsp;<span class="string">",&nbsp;"</span>&nbsp;files)<br>
+<br>
+<span class="keyword">let</span>&nbsp;help&nbsp;copts&nbsp;man_format&nbsp;cmds&nbsp;topic&nbsp;=&nbsp;<span class="keyword">match</span>&nbsp;topic&nbsp;<span class="keyword">with</span><br>
+<span class="keywordsign">|</span>&nbsp;<span class="constructor">None</span>&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="keywordsign">`</span><span class="constructor">Help</span>&nbsp;(<span class="keywordsign">`</span><span class="constructor">Pager</span>,&nbsp;<span class="constructor">None</span>)&nbsp;<span class="comment">(*&nbsp;help&nbsp;about&nbsp;the&nbsp;program.&nbsp;*)</span><br>
+<span class="keywordsign">|</span>&nbsp;<span class="constructor">Some</span>&nbsp;topic&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;topics&nbsp;=&nbsp;<span class="string">"topics"</span>&nbsp;::&nbsp;<span class="string">"patterns"</span>&nbsp;::&nbsp;<span class="string">"environment"</span>&nbsp;::&nbsp;cmds&nbsp;<span class="keyword">in</span>&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;conv,&nbsp;_&nbsp;=&nbsp;<span class="constructor">Cmdliner</span>.<span class="constructor">Arg</span>.enum&nbsp;(<span class="constructor">List</span>.rev_map&nbsp;(<span class="keyword">fun</span>&nbsp;s&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;(s,&nbsp;s))&nbsp;topics)&nbsp;<span class="keyword">in</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">match</span>&nbsp;conv&nbsp;topic&nbsp;<span class="keyword">with</span>&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="keywordsign">`</span><span class="constructor">Error</span>&nbsp;e&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="keywordsign">`</span><span class="constructor">Error</span>&nbsp;(<span class="keyword">false</span>,&nbsp;e)<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="keywordsign">`</span><span class="constructor">Ok</span>&nbsp;t&nbsp;<span class="keyword">when</span>&nbsp;t&nbsp;=&nbsp;<span class="string">"topics"</span>&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">List</span>.iter&nbsp;print_endline&nbsp;topics;&nbsp;<span class="keywordsign">`</span><span class="constructor">Ok</span>&nbsp;()<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="keywordsign">`</span><span class="constructor">Ok</span>&nbsp;t&nbsp;<span class="keyword">when</span>&nbsp;<span class="constructor">List</span>.mem&nbsp;t&nbsp;cmds&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="keywordsign">`</span><span class="constructor">Help</span>&nbsp;(man_format,&nbsp;<span class="constructor">Some</span>&nbsp;t)<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">|</span>&nbsp;<span class="keywordsign">`</span><span class="constructor">Ok</span>&nbsp;t&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;page&nbsp;=&nbsp;(topic,&nbsp;7,&nbsp;<span class="string">""</span>,&nbsp;<span class="string">""</span>,&nbsp;<span class="string">""</span>),&nbsp;[<span class="keywordsign">`</span><span class="constructor">S</span>&nbsp;topic;&nbsp;<span class="keywordsign">`</span><span class="constructor">P</span>&nbsp;<span class="string">"Say&nbsp;something"</span>;]&nbsp;<span class="keyword">in</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">`</span><span class="constructor">Ok</span>&nbsp;(<span class="constructor">Cmdliner</span>.<span class="constructor">Manpage</span>.print&nbsp;man_format&nbsp;<span class="constructor">Format</span>.std_formatter&nbsp;page)<br>
+<br>
+<span class="keyword">open</span>&nbsp;<span class="constructor">Cmdliner</span>;;<br>
+<br>
+<span class="comment">(*&nbsp;Help&nbsp;sections&nbsp;common&nbsp;to&nbsp;all&nbsp;commands&nbsp;*)</span><br>
+<br>
+<span class="keyword">let</span>&nbsp;copts_sect&nbsp;=&nbsp;<span class="string">"COMMON&nbsp;OPTIONS"</span><br>
+<span class="keyword">let</span>&nbsp;help_secs&nbsp;=&nbsp;[&nbsp;<br>
+&nbsp;<span class="keywordsign">`</span><span class="constructor">S</span>&nbsp;copts_sect;&nbsp;<br>
+&nbsp;<span class="keywordsign">`</span><span class="constructor">P</span>&nbsp;<span class="string">"These&nbsp;options&nbsp;are&nbsp;common&nbsp;to&nbsp;all&nbsp;commands."</span>;<br>
+&nbsp;<span class="keywordsign">`</span><span class="constructor">S</span>&nbsp;<span class="string">"MORE&nbsp;HELP"</span>;<br>
+&nbsp;<span class="keywordsign">`</span><span class="constructor">P</span>&nbsp;<span class="string">"Use&nbsp;`$(mname)&nbsp;$(i,COMMAND)&nbsp;--help'&nbsp;for&nbsp;help&nbsp;on&nbsp;a&nbsp;single&nbsp;command."</span>;<span class="keywordsign">`</span><span class="constructor">Noblank</span>;<br>
+&nbsp;<span class="keywordsign">`</span><span class="constructor">P</span>&nbsp;<span class="string">"Use&nbsp;`$(mname)&nbsp;help&nbsp;patterns'&nbsp;for&nbsp;help&nbsp;on&nbsp;patch&nbsp;matching."</span>;&nbsp;<span class="keywordsign">`</span><span class="constructor">Noblank</span>;<br>
+&nbsp;<span class="keywordsign">`</span><span class="constructor">P</span>&nbsp;<span class="string">"Use&nbsp;`$(mname)&nbsp;help&nbsp;environment'&nbsp;for&nbsp;help&nbsp;on&nbsp;environment&nbsp;variables."</span>;<br>
+&nbsp;<span class="keywordsign">`</span><span class="constructor">S</span>&nbsp;<span class="string">"BUGS"</span>;&nbsp;<span class="keywordsign">`</span><span class="constructor">P</span>&nbsp;<span class="string">"Check&nbsp;bug&nbsp;reports&nbsp;at&nbsp;http://bugs.example.org."</span>;]<br>
+<br>
+<span class="comment">(*&nbsp;Options&nbsp;common&nbsp;to&nbsp;all&nbsp;commands&nbsp;*)</span><br>
+<br>
+<span class="keyword">let</span>&nbsp;copts&nbsp;debug&nbsp;verb&nbsp;prehook&nbsp;=&nbsp;{&nbsp;debug;&nbsp;verb;&nbsp;prehook&nbsp;}<br>
+<span class="keyword">let</span>&nbsp;copts_t&nbsp;=&nbsp;<br>
+&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;docs&nbsp;=&nbsp;copts_sect&nbsp;<span class="keyword">in</span>&nbsp;<br>
+&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;debug&nbsp;=&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;doc&nbsp;=&nbsp;<span class="string">"Give&nbsp;only&nbsp;debug&nbsp;output."</span>&nbsp;<span class="keyword">in</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">Arg</span>.(value&nbsp;<span class="keywordsign">&amp;</span>&nbsp;flag&nbsp;<span class="keywordsign">&amp;</span>&nbsp;info&nbsp;[<span class="string">"debug"</span>]&nbsp;~docs&nbsp;~doc)<br>
+&nbsp;&nbsp;<span class="keyword">in</span><br>
+&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;verb&nbsp;=<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;doc&nbsp;=&nbsp;<span class="string">"Suppress&nbsp;informational&nbsp;output."</span>&nbsp;<span class="keyword">in</span>&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;quiet&nbsp;=&nbsp;<span class="constructor">Quiet</span>,&nbsp;<span class="constructor">Arg</span>.info&nbsp;[<span class="string">"q"</span>;&nbsp;<span class="string">"quiet"</span>]&nbsp;~docs&nbsp;~doc&nbsp;<span class="keyword">in</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;doc&nbsp;=&nbsp;<span class="string">"Give&nbsp;verbose&nbsp;output."</span>&nbsp;<span class="keyword">in</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;verbose&nbsp;=&nbsp;<span class="constructor">Verbose</span>,&nbsp;<span class="constructor">Arg</span>.info&nbsp;[<span class="string">"v"</span>;&nbsp;<span class="string">"verbose"</span>]&nbsp;~docs&nbsp;~doc&nbsp;<span class="keyword">in</span>&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">Arg</span>.(last&nbsp;<span class="keywordsign">&amp;</span>&nbsp;vflag_all&nbsp;[<span class="constructor">Normal</span>]&nbsp;[quiet;&nbsp;verbose])&nbsp;<br>
+&nbsp;&nbsp;<span class="keyword">in</span>&nbsp;<br>
+&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;prehook&nbsp;=&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;doc&nbsp;=&nbsp;<span class="string">"Specify&nbsp;command&nbsp;to&nbsp;run&nbsp;before&nbsp;this&nbsp;$(mname)&nbsp;command."</span>&nbsp;<span class="keyword">in</span>&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">Arg</span>.(value&nbsp;<span class="keywordsign">&amp;</span>&nbsp;opt&nbsp;(some&nbsp;string)&nbsp;<span class="constructor">None</span>&nbsp;<span class="keywordsign">&amp;</span>&nbsp;info&nbsp;[<span class="string">"prehook"</span>]&nbsp;~docs&nbsp;~doc)<br>
+&nbsp;&nbsp;<span class="keyword">in</span><br>
+&nbsp;&nbsp;<span class="constructor">Term</span>.(pure&nbsp;copts&nbsp;$&nbsp;debug&nbsp;$&nbsp;verb&nbsp;$&nbsp;prehook)<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<br>
+<span class="comment">(*&nbsp;Commands&nbsp;*)</span><br>
+<br>
+<span class="keyword">let</span>&nbsp;initialize_cmd&nbsp;=&nbsp;<br>
+&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;repodir&nbsp;=&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;doc&nbsp;=&nbsp;<span class="string">"Run&nbsp;the&nbsp;program&nbsp;in&nbsp;repository&nbsp;directory&nbsp;$(docv)."</span>&nbsp;<span class="keyword">in</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">Arg</span>.(value&nbsp;<span class="keywordsign">&amp;</span>&nbsp;opt&nbsp;file&nbsp;<span class="constructor">Filename</span>.current_dir_name&nbsp;<span class="keywordsign">&amp;</span>&nbsp;info&nbsp;[<span class="string">"repodir"</span>]<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;~docv:<span class="string">"DIR"</span>&nbsp;~doc)<br>
+&nbsp;&nbsp;<span class="keyword">in</span><br>
+&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;doc&nbsp;=&nbsp;<span class="string">"make&nbsp;the&nbsp;current&nbsp;directory&nbsp;a&nbsp;repository"</span>&nbsp;<span class="keyword">in</span><br>
+&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;man&nbsp;=&nbsp;[<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">`</span><span class="constructor">S</span>&nbsp;<span class="string">"DESCRIPTION"</span>;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">`</span><span class="constructor">P</span>&nbsp;<span class="string">"Turns&nbsp;the&nbsp;current&nbsp;directory&nbsp;into&nbsp;a&nbsp;Darcs&nbsp;repository.&nbsp;Any<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;existing&nbsp;files&nbsp;and&nbsp;subdirectories&nbsp;become&nbsp;..."</span>]&nbsp;@&nbsp;help_secs<br>
+&nbsp;&nbsp;<span class="keyword">in</span><br>
+&nbsp;&nbsp;<span class="constructor">Term</span>.(pure&nbsp;initialize&nbsp;$&nbsp;copts_t&nbsp;$&nbsp;repodir),<br>
+&nbsp;&nbsp;<span class="constructor">Term</span>.info&nbsp;<span class="string">"initialize"</span>&nbsp;~sdocs:copts_sect&nbsp;~doc&nbsp;~man<br>
+<br>
+<span class="keyword">let</span>&nbsp;record_cmd&nbsp;=<br>
+&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;pname&nbsp;=&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;doc&nbsp;=&nbsp;<span class="string">"Name&nbsp;of&nbsp;the&nbsp;patch."</span>&nbsp;<span class="keyword">in</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">Arg</span>.(value&nbsp;<span class="keywordsign">&amp;</span>&nbsp;opt&nbsp;(some&nbsp;string)&nbsp;<span class="constructor">None</span>&nbsp;<span class="keywordsign">&amp;</span>&nbsp;info&nbsp;[<span class="string">"m"</span>;&nbsp;<span class="string">"patch-name"</span>]&nbsp;~docv:<span class="string">"NAME"</span>&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;~doc)<br>
+&nbsp;&nbsp;<span class="keyword">in</span><br>
+&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;author&nbsp;=&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;doc&nbsp;=&nbsp;<span class="string">"Specifies&nbsp;the&nbsp;author's&nbsp;identity."</span>&nbsp;<span class="keyword">in</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">Arg</span>.(value&nbsp;<span class="keywordsign">&amp;</span>&nbsp;opt&nbsp;(some&nbsp;string)&nbsp;<span class="constructor">None</span>&nbsp;<span class="keywordsign">&amp;</span>&nbsp;info&nbsp;[<span class="string">"A"</span>;&nbsp;<span class="string">"author"</span>]&nbsp;~docv:<span class="string">"EMAIL"</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;~doc)<br>
+&nbsp;&nbsp;<span class="keyword">in</span><br>
+&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;all&nbsp;=&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;doc&nbsp;=&nbsp;<span class="string">"Answer&nbsp;yes&nbsp;to&nbsp;all&nbsp;patches."</span>&nbsp;<span class="keyword">in</span>&nbsp;&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">Arg</span>.(value&nbsp;<span class="keywordsign">&amp;</span>&nbsp;flag&nbsp;<span class="keywordsign">&amp;</span>&nbsp;info&nbsp;[<span class="string">"a"</span>;&nbsp;<span class="string">"all"</span>]&nbsp;~doc)<br>
+&nbsp;&nbsp;<span class="keyword">in</span><br>
+&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;ask_deps&nbsp;=&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;doc&nbsp;=&nbsp;<span class="string">"Ask&nbsp;for&nbsp;extra&nbsp;dependencies."</span>&nbsp;<span class="keyword">in</span>&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">Arg</span>.(value&nbsp;<span class="keywordsign">&amp;</span>&nbsp;flag&nbsp;<span class="keywordsign">&amp;</span>&nbsp;info&nbsp;[<span class="string">"ask-deps"</span>]&nbsp;~doc)<br>
+&nbsp;&nbsp;<span class="keyword">in</span><br>
+&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;files&nbsp;=&nbsp;<span class="constructor">Arg</span>.(value&nbsp;<span class="keywordsign">&amp;</span>&nbsp;(pos_all&nbsp;file)&nbsp;[]&nbsp;<span class="keywordsign">&amp;</span>&nbsp;info&nbsp;[]&nbsp;~docv:<span class="string">"FILE&nbsp;or&nbsp;DIR"</span>)&nbsp;<span class="keyword">in</span><br>
+&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;doc&nbsp;=&nbsp;<span class="string">"create&nbsp;a&nbsp;patch&nbsp;from&nbsp;unrecorded&nbsp;changes"</span>&nbsp;<span class="keyword">in</span>&nbsp;<br>
+&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;man&nbsp;=&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;[<span class="keywordsign">`</span><span class="constructor">S</span>&nbsp;<span class="string">"DESCRIPTION"</span>;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">`</span><span class="constructor">P</span>&nbsp;<span class="string">"Creates&nbsp;a&nbsp;patch&nbsp;from&nbsp;changes&nbsp;in&nbsp;the&nbsp;working&nbsp;tree.&nbsp;If&nbsp;you&nbsp;specify&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;a&nbsp;set&nbsp;of&nbsp;files&nbsp;..."</span>]&nbsp;@&nbsp;help_secs<br>
+&nbsp;&nbsp;<span class="keyword">in</span>&nbsp;&nbsp;&nbsp;&nbsp;<br>
+&nbsp;&nbsp;<span class="constructor">Term</span>.(pure&nbsp;record&nbsp;$&nbsp;copts_t&nbsp;$&nbsp;pname&nbsp;$&nbsp;author&nbsp;$&nbsp;all&nbsp;$&nbsp;ask_deps&nbsp;$&nbsp;files),<br>
+&nbsp;&nbsp;<span class="constructor">Term</span>.info&nbsp;<span class="string">"record"</span>&nbsp;~doc&nbsp;~sdocs:copts_sect&nbsp;~man<br>
+<br>
+<span class="keyword">let</span>&nbsp;help_cmd&nbsp;=&nbsp;<br>
+&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;topic&nbsp;=&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;doc&nbsp;=&nbsp;<span class="string">"The&nbsp;topic&nbsp;to&nbsp;get&nbsp;help&nbsp;on.&nbsp;`topics'&nbsp;lists&nbsp;the&nbsp;topics."</span>&nbsp;<span class="keyword">in</span>&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">Arg</span>.(value&nbsp;<span class="keywordsign">&amp;</span>&nbsp;pos&nbsp;0&nbsp;(some&nbsp;string)&nbsp;<span class="constructor">None</span>&nbsp;<span class="keywordsign">&amp;</span>&nbsp;info&nbsp;[]&nbsp;~docv:<span class="string">"TOPIC"</span>&nbsp;~doc)<br>
+&nbsp;&nbsp;<span class="keyword">in</span><br>
+&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;doc&nbsp;=&nbsp;<span class="string">"display&nbsp;help&nbsp;about&nbsp;darcs&nbsp;and&nbsp;darcs&nbsp;commands"</span>&nbsp;<span class="keyword">in</span><br>
+&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;man&nbsp;=&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;[<span class="keywordsign">`</span><span class="constructor">S</span>&nbsp;<span class="string">"DESCRIPTION"</span>;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keywordsign">`</span><span class="constructor">P</span>&nbsp;<span class="string">"Prints&nbsp;help&nbsp;about&nbsp;darcs&nbsp;commands&nbsp;and&nbsp;other&nbsp;subjects..."</span>]&nbsp;@&nbsp;help_secs<br>
+&nbsp;&nbsp;<span class="keyword">in</span><br>
+&nbsp;&nbsp;<span class="constructor">Term</span>.(ret&nbsp;(pure&nbsp;help&nbsp;$&nbsp;copts_t&nbsp;$&nbsp;<span class="constructor">Term</span>.man_format&nbsp;$&nbsp;<span class="constructor">Term</span>.choice_names&nbsp;$topic)),<br>
+&nbsp;&nbsp;<span class="constructor">Term</span>.info&nbsp;<span class="string">"help"</span>&nbsp;~doc&nbsp;~man<br>
+<br>
+<span class="keyword">let</span>&nbsp;default_cmd&nbsp;=&nbsp;<br>
+&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;doc&nbsp;=&nbsp;<span class="string">"a&nbsp;revision&nbsp;control&nbsp;system"</span>&nbsp;<span class="keyword">in</span>&nbsp;<br>
+&nbsp;&nbsp;<span class="keyword">let</span>&nbsp;man&nbsp;=&nbsp;help_secs&nbsp;<span class="keyword">in</span><br>
+&nbsp;&nbsp;<span class="constructor">Term</span>.(ret&nbsp;(pure&nbsp;(<span class="keyword">fun</span>&nbsp;_&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="keywordsign">`</span><span class="constructor">Help</span>&nbsp;(<span class="keywordsign">`</span><span class="constructor">Pager</span>,&nbsp;<span class="constructor">None</span>))&nbsp;$&nbsp;copts_t)),<br>
+&nbsp;&nbsp;<span class="constructor">Term</span>.info&nbsp;<span class="string">"darcs"</span>&nbsp;~version:<span class="string">"1.6.1"</span>&nbsp;~sdocs:copts_sect&nbsp;~doc&nbsp;~man<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<br>
+<span class="keyword">let</span>&nbsp;cmds&nbsp;=&nbsp;[initialize_cmd;&nbsp;record_cmd;&nbsp;help_cmd]<br>
+<br>
+<span class="keyword">let</span>&nbsp;()&nbsp;=&nbsp;<span class="keyword">match</span>&nbsp;<span class="constructor">Term</span>.eval_choice&nbsp;default_cmd&nbsp;cmds&nbsp;<span class="keyword">with</span>&nbsp;<br>
+<span class="keywordsign">|</span>&nbsp;<span class="keywordsign">`</span><span class="constructor">Error</span>&nbsp;_&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;exit&nbsp;1&nbsp;<span class="keywordsign">|</span>&nbsp;_&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;exit&nbsp;0<br>
+</code></pre><br>
+</body></html>

@@ -23,15 +23,8 @@ let check var = ref (
     with Not_found -> false
   )
 
-let debug = ref (
-    try int_of_string (OpamMisc.getenv "OPAMDEBUG") >= 2
-    with _ -> false
-  )
-
-let verbose =
-  try ref (int_of_string (OpamMisc.getenv "OPAMDEBUG") >= 1)
-  with _ -> check "VERBOSE"
-
+let debug            = check "DEBUG"
+let verbose          = check "VERBOSE"
 let keep_build_dir   = check "KEEPBUILDDIR"
 let no_base_packages = check "NOBASEPACKAGES"
 let no_checksums     = check "NOCHECKSUMS"
@@ -43,6 +36,8 @@ let fake             = check "FAKE"
 let print_stats      = check "STATS"
 let utf8_msgs        = check "UTF8MSGS"
 let autoremove       = check "AUTOREMOVE"
+let do_not_copy_files = check "DONOTCOPYFILES"
+let sync_archives    = check "SYNCARCHIVES"
 
 let jobs = ref (
     try Some (int_of_string (OpamMisc.getenv "OPAMJOBS"))
@@ -53,7 +48,15 @@ let download_retry =
   try max 1 (int_of_string (OpamMisc.getenv "OPAMRETRY"))
   with _ -> 10
 
-let cudf_file = ref (None: string option)
+let cudf_file = ref (
+    try Some (OpamMisc.getenv "OPAMCUDFFILE")
+    with _ -> None
+  )
+
+let solver_timeout =
+  try float_of_string (OpamMisc.getenv "OPAMSOLVERTIMEOUT")
+  with _ -> 5.
+
 let aspcud_criteria =
   try OpamMisc.strip (OpamMisc.getenv "OPAMCRITERIA")
   with _ -> "-removed,-notuptodate,-new"
@@ -63,11 +66,9 @@ let default_repository_address = "http://opam.ocamlpro.com"
 
 let default_build_command = [ [ "./build.sh" ] ]
 
-let default_package = "conf-ocaml"
+let global_config = "global-config"
 
 let system = "system"
-
-let json_output: string option ref = ref None
 
 let switch: [`Env of string
             | `Command_line of string
@@ -93,8 +94,10 @@ let root_dir = ref (
     with _ -> default_opam_dir
   )
 
+let init_time = Unix.gettimeofday ()
+
 let timestamp () =
-  let time = Sys.time () in
+  let time = Unix.gettimeofday () -. init_time in
   let tm = Unix.gmtime time in
   let msec = time -. (floor time) in
   Printf.sprintf "%.2d:%.2d.%.3d"
@@ -105,7 +108,7 @@ let timestamp () =
 let log section fmt =
   Printf.ksprintf (fun str ->
     if !debug then
-      Printf.eprintf "%s  %06d  %-25s  %s\n"
+      Printf.eprintf "%s  %06d  %-25s  %s\n%!"
         (timestamp ()) (Unix.getpid ()) section str
   ) fmt
 

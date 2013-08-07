@@ -20,11 +20,13 @@ module type SET = sig
   val choose_one : t -> elt
   val of_list: elt list -> t
   val to_string: t -> string
+  val to_json: t -> OpamJson.t
   val find: (elt -> bool) -> t -> elt
 end
 module type MAP = sig
   include Map.S
   val to_string: ('a -> string) -> 'a t -> string
+  val to_json: ('a -> OpamJson.t) -> 'a t -> OpamJson.t
   val values: 'a t -> 'a list
   val keys: 'a t -> key list
   val union: ('a -> 'a -> 'a) -> 'a t -> 'a t -> 'a t
@@ -34,6 +36,7 @@ module type ABSTRACT = sig
   type t
   val of_string: string -> t
   val to_string: t -> string
+  val to_json: t -> OpamJson.t
   module Set: SET with type elt = t
   module Map: MAP with type key = t
 end
@@ -41,7 +44,10 @@ end
 module type OrderedType = sig
   include Set.OrderedType
   val to_string: t -> string
+  val to_json: t -> OpamJson.t
 end
+
+let debug = ref false
 
 let string_of_list f = function
   | [] -> "{}"
@@ -74,6 +80,13 @@ module Set = struct
 
     include S
 
+    let fold f set i =
+      let r = ref i in
+      S.iter (fun elt ->
+          r := f elt !r
+        ) set;
+      !r
+
     let choose_one s =
       match elements s with
       | [x] -> x
@@ -84,7 +97,7 @@ module Set = struct
       List.fold_left (fun set e -> add e set) empty l
 
     let to_string s =
-      if S.cardinal s > max_print then
+      if not !debug && S.cardinal s > max_print then
 	Printf.sprintf "%d elements" (S.cardinal s)
       else
 	let l = S.fold (fun nv l -> O.to_string nv :: l) s [] in
@@ -95,6 +108,11 @@ module Set = struct
 
     let find fn s =
       choose (filter fn s)
+
+    let to_json t =
+      let elements = S.elements t in
+      let jsons = List.map O.to_json elements in
+      `A jsons
 
   end
 
@@ -107,6 +125,23 @@ module Map = struct
     module M = Map.Make(O)
 
     include M
+
+    let fold f map i =
+      let r = ref i in
+      M.iter (fun key value->
+          r:= f key value !r
+        ) map;
+      !r
+
+    let map f map =
+      fold (fun key value map ->
+          add key (f value) map
+        ) map empty
+
+    let mapi f map =
+      fold (fun key value map ->
+          add key (f key value) map
+        ) map empty
 
     let values map =
       List.rev (M.fold (fun _ v acc -> v :: acc) map [])
@@ -123,7 +158,7 @@ module Map = struct
       ) m1 m2
 
     let to_string string_of_value m =
-      if M.cardinal m > 100 then
+      if not !debug && M.cardinal m > 100 then
 	Printf.sprintf "%d elements" (M.cardinal m)
       else
 	let s (k,v) = Printf.sprintf "%s:%s" (O.to_string k) (string_of_value v) in
@@ -133,6 +168,14 @@ module Map = struct
     let of_list l =
       List.fold_left (fun map (k,v) -> add k v map) empty l
 
+    let to_json json_of_value t =
+      let bindings = M.bindings t in
+      let jsons = List.map (fun (k,v) ->
+          `O [ ("key"  , O.to_json k);
+               ("value", json_of_value v) ]
+        ) bindings in
+      `A jsons
+
   end
 
 end
@@ -141,10 +184,12 @@ module Base = struct
   type t = string
   let of_string x = x
   let to_string x = x
+  let to_json x = `String x
   module O = struct
     type t = string
     let to_string = to_string
     let compare = compare
+    let to_json = to_json
   end
   module Set = Set.Make(O)
   module Map = Map.Make(O)
@@ -163,6 +208,7 @@ module OInt = struct
   type t = int
   let compare = compare
   let to_string = string_of_int
+  let to_json i = `String (string_of_int i)
 end
 
 module IntMap = Map.Make(OInt)
@@ -172,6 +218,7 @@ module OString = struct
   type t = string
   let compare = compare
   let to_string x = x
+  let to_json x = `String x
 end
 
 module StringSet = Set.Make(OString)
@@ -330,22 +377,12 @@ let sub_at n s =
   else
     String.sub s 0 n
 
-let git_of_string a =
-  match cut_at a '#' with
-  | None       -> a, None
-  | Some (a,c) -> a, Some c
-
-(* maybe paths processing will become different for git and hg, so here is
-   a separate function. *)
-let hg_of_string = git_of_string
-
 let pretty_backtrace () =
   match Printexc.get_backtrace () with
   | "" -> ""
   | b  ->
     let b = String.concat "\n  " (split b '\n') in
     Printf.sprintf "Backtrace:\n  %s\n" b
-
 
 let default_columns = 100
 
@@ -413,3 +450,15 @@ let guess_dot_profile shell =
     else
       bashrc
   | _     -> home ".profile"
+
+let prettify_path s =
+  let aux ~short ~prefix =
+    let prefix = Filename.concat prefix "" in
+    if starts_with ~prefix s then
+      let suffix = remove_prefix ~prefix s in
+      Some (Filename.concat short suffix)
+    else
+      None in
+  match aux ~short:"~" ~prefix:(getenv "HOME") with
+  | Some p -> p
+  | None   -> s

@@ -44,12 +44,19 @@ let string_of_package p =
 let string_of_packages l =
   OpamMisc.string_of_list string_of_package l
 
+let to_json p =
+  `O [ ("name", `String p.Cudf.package);
+       ("version", `String (string_of_int p.Cudf.version));
+       ("installed", `String (string_of_bool p.Cudf.installed));
+     ]
+
 (* Graph of cudf packages *)
 module Pkg = struct
   type t = Cudf.package
   include Common.CudfAdd
   let to_string = string_of_package
   let string_of_action ?causes:_ = string_of_action
+  let to_json = to_json
 end
 
 module ActionGraph = MakeActionGraph(Pkg)
@@ -167,12 +174,15 @@ let string_of_reason cudf2opam r =
   | Conflict (i,j,_) ->
     let nvi = cudf2opam i in
     let nvj = cudf2opam j in
-    let nva = min nvi nvj in
-    let nvb = max nvi nvj in
-    let str = Printf.sprintf "%s is in conflict with %s."
-        (OpamPackage.to_string nva)
-        (OpamPackage.to_string nvb) in
-    Some str
+    if OpamPackage.name nvi = OpamPackage.name nvj then
+      None
+    else
+      let nva = min nvi nvj in
+      let nvb = max nvi nvj in
+      let str = Printf.sprintf "%s is in conflict with %s."
+          (OpamPackage.to_string nva)
+          (OpamPackage.to_string nvb) in
+      Some str
   | Missing (p,m) ->
     let of_package =
       if p.Cudf.package = "dose-dummy-request" then ""
@@ -221,13 +231,14 @@ let make_chains depends =
 
 let string_of_reasons cudf2opam reasons =
   let open Algo.Diagnostic in
-  let depends, reasons = List.partition (function Dependency _ -> true | _ -> false) reasons in
+  let depends, reasons =
+    List.partition (function Dependency _ -> true | _ -> false) reasons in
   let chains = make_chains depends in
   let rec string_of_chain = function
     | []   -> ""
-    | [p]  -> OpamPackage.to_string (cudf2opam p)
+    | [p]  -> Printf.sprintf "%s." (OpamPackage.to_string (cudf2opam p))
     | p::t -> Printf.sprintf
-                "%s needed by %s."
+                "%s needed by %s"
                 (OpamPackage.to_string (cudf2opam p))
                 (string_of_chain t) in
   let string_of_chain c = string_of_chain (List.rev c) in
@@ -480,16 +491,20 @@ let solution_of_actions ~simple_universe ~complete_universe root_actions =
         | To_delete _ -> None
       ) root_actions) in
 
-  (* the graph of interesting packages, which might be impacted by the
-     current actions *)
-  let interesting_packages =
+  let all_packages =
+    (* we consider the complete universe here (eg. including optional dependencies) *)
     let graph =
-      (* we consider the complete universe here (eg. including optional dependencies) *)
       create_graph
         (fun p -> p.Cudf.installed || Map.mem p actions)
         complete_universe in
-    List.iter (Graph.remove_vertex graph) to_remove_or_upgrade;
     Graph.mirror graph in
+
+  (* the graph of interesting packages, which might be impacted by the
+     current actions *)
+  let interesting_packages =
+    let graph = Graph.copy all_packages in
+    List.iter (Graph.remove_vertex graph) to_remove_or_upgrade;
+    graph in
 
   (* the packages to remove, and the associated root causes *)
   let to_remove, root_causes =
@@ -528,7 +543,7 @@ let solution_of_actions ~simple_universe ~complete_universe root_actions =
     (* add the packages to recompile due to the REMOVAL of packages
        (ie. when an optional dependency has been removed). *)
     List.fold_left (fun to_recompile pkg ->
-      let succ = Graph.succ interesting_packages pkg in
+      let succ = Graph.succ all_packages pkg in
       Set.union to_recompile (Set.of_list succ)
     ) recompile_roots to_remove in
 
@@ -587,6 +602,15 @@ let solution_of_actions ~simple_universe ~complete_universe root_actions =
         let pred = ActionGraph.pred to_process_complete action in
         let causes = List.filter (fun a -> ActionGraph.in_degree to_process a = 0) pred in
         let causes = List.rev_map action_contents causes in
+        let causes =
+          List.fold_left
+            (fun causes removed_pkg ->
+               if List.mem pkg (Graph.succ all_packages removed_pkg)
+               then removed_pkg :: causes
+               else causes)
+            causes
+            to_remove
+        in
         let cause = match causes with
           | [] -> Upstream_changes
           | _  -> Use causes in

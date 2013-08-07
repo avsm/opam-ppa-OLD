@@ -1,0 +1,325 @@
+<html>
+<head>
+<link rel="stylesheet" href="style.css" type="text/css">
+<meta content="text/html; charset=utf-8" http-equiv="Content-Type">
+<link rel="Start" href="index.html">
+<link title="Index of types" rel=Appendix href="index_types.html">
+<link title="Index of values" rel=Appendix href="index_values.html">
+<link title="Index of modules" rel=Appendix href="index_modules.html">
+<link title="Cmdliner" rel="Chapter" href="Cmdliner.html"><title>Index of values</title>
+</head>
+<body>
+<div class="navbar">&nbsp;<a class="up" href="index.html" title="Index">Up</a>
+&nbsp;</div>
+<h1>Index of values</h1>
+<table>
+<tr><td align="left"><br></td></tr>
+<tr><td><a href="Cmdliner.Term.html#VAL($)">($)</a> [<a href="Cmdliner.Term.html">Cmdliner.Term</a>]</td>
+<td><div class="info">
+<code class="code">f $ v</code> is a term that evaluates to the result of applying
+      the evaluation of <code class="code">v</code> to the one of <code class="code">f</code>.
+</div>
+</td></tr>
+<tr><td><a href="Cmdliner.Arg.html#VAL(&)">(&amp;)</a> [<a href="Cmdliner.Arg.html">Cmdliner.Arg</a>]</td>
+<td><div class="info">
+<code class="code">f <span class="keywordsign">&amp;</span> v</code> is <code class="code">f v</code>, a right associative composition operator for
+      specifying argument terms.
+</div>
+</td></tr>
+<tr><td align="left"><br>A</td></tr>
+<tr><td><a href="Cmdliner.Term.html#VALapp">app</a> [<a href="Cmdliner.Term.html">Cmdliner.Term</a>]</td>
+<td><div class="info">
+<code class="code">app</code> is <a href="Cmdliner.Term.html#VAL($)"><code class="code"><span class="constructor">Cmdliner</span>.<span class="constructor">Term</span>.($)</code></a>.
+</div>
+</td></tr>
+<tr><td><a href="Cmdliner.Arg.html#VALarray">array</a> [<a href="Cmdliner.Arg.html">Cmdliner.Arg</a>]</td>
+<td><div class="info">
+<code class="code">array sep c</code> splits the argument at each <code class="code">sep</code> (defaults to <code class="code"><span class="string">','</span></code>) 
+      character and converts each substring with <code class="code">c</code>.
+</div>
+</td></tr>
+<tr><td align="left"><br>B</td></tr>
+<tr><td><a href="Cmdliner.Arg.html#VALbool">bool</a> [<a href="Cmdliner.Arg.html">Cmdliner.Arg</a>]</td>
+<td><div class="info">
+<code class="code">bool</code> converts values with <code class="code">bool_of_string</code>.
+</div>
+</td></tr>
+<tr><td align="left"><br>C</td></tr>
+<tr><td><a href="Cmdliner.Arg.html#VALchar">char</a> [<a href="Cmdliner.Arg.html">Cmdliner.Arg</a>]</td>
+<td><div class="info">
+<code class="code">char</code> converts values by ensuring the argument has a single char.
+</div>
+</td></tr>
+<tr><td><a href="Cmdliner.Term.html#VALchoice_names">choice_names</a> [<a href="Cmdliner.Term.html">Cmdliner.Term</a>]</td>
+<td><div class="info">
+<code class="code">choice_names</code> is a term that evaluates to the names of the terms
+      to choose from.
+</div>
+</td></tr>
+<tr><td align="left"><br>D</td></tr>
+<tr><td><a href="Cmdliner.Arg.html#VALdir">dir</a> [<a href="Cmdliner.Arg.html">Cmdliner.Arg</a>]</td>
+<td><div class="info">
+<code class="code">dir</code> converts a value with the identity function and checks
+      with <code class="code"><span class="constructor">Sys</span>.file_exists</code> and <code class="code"><span class="constructor">Sys</span>.is_directory</code> 
+      that a directory with that name exists.
+</div>
+</td></tr>
+<tr><td align="left"><br>E</td></tr>
+<tr><td><a href="Cmdliner.Arg.html#VALenum">enum</a> [<a href="Cmdliner.Arg.html">Cmdliner.Arg</a>]</td>
+<td><div class="info">
+<code class="code">enum l p</code> converts values such that unambiguous prefixes of string names 
+      in <code class="code">l</code> map to the corresponding value of type <code class="code"><span class="keywordsign">'</span>a</code>.
+</div>
+</td></tr>
+<tr><td><a href="Cmdliner.Term.html#VALeval">eval</a> [<a href="Cmdliner.Term.html">Cmdliner.Term</a>]</td>
+<td><div class="info">
+<code class="code">eval help err catch argv (t,i)</code>  is the evaluation result
+    of <code class="code">t</code> with command line arguments <code class="code">argv</code> (defaults to <code class="code"><span class="constructor">Sys</span>.argv</code>).
+</div>
+</td></tr>
+<tr><td><a href="Cmdliner.Term.html#VALeval_choice">eval_choice</a> [<a href="Cmdliner.Term.html">Cmdliner.Term</a>]</td>
+<td><div class="info">
+<code class="code">eval_choice help err catch argv default (t,i) choices</code> is like <a href="Cmdliner.Term.html#VALeval"><code class="code"><span class="constructor">Cmdliner</span>.<span class="constructor">Term</span>.eval</code></a> 
+      except that if the first argument on the command line is not an option 
+      name it will look in <code class="code">choices</code> for a term whose information has this 
+      name and evaluate it.
+</div>
+</td></tr>
+<tr><td align="left"><br>F</td></tr>
+<tr><td><a href="Cmdliner.Arg.html#VALfile">file</a> [<a href="Cmdliner.Arg.html">Cmdliner.Arg</a>]</td>
+<td><div class="info">
+<code class="code">file</code> converts a value with the identity function and
+      checks with <code class="code"><span class="constructor">Sys</span>.file_exists</code> that a file with that name exists.
+</div>
+</td></tr>
+<tr><td><a href="Cmdliner.Arg.html#VALflag">flag</a> [<a href="Cmdliner.Arg.html">Cmdliner.Arg</a>]</td>
+<td><div class="info">
+<code class="code">flag i</code> is a <code class="code">bool</code> argument defined by an optional flag 
+      that may appear <em>at most</em> once on the command line under one of 
+      the names specified by <code class="code">i</code>.
+</div>
+</td></tr>
+<tr><td><a href="Cmdliner.Arg.html#VALflag_all">flag_all</a> [<a href="Cmdliner.Arg.html">Cmdliner.Arg</a>]</td>
+<td><div class="info">
+<code class="code">flag_all</code> is like <a href="Cmdliner.Arg.html#VALflag"><code class="code"><span class="constructor">Cmdliner</span>.<span class="constructor">Arg</span>.flag</code></a> except the flag may appear more than
+      once.
+</div>
+</td></tr>
+<tr><td><a href="Cmdliner.Arg.html#VALfloat">float</a> [<a href="Cmdliner.Arg.html">Cmdliner.Arg</a>]</td>
+<td><div class="info">
+<code class="code">float</code> converts values with <code class="code">float_of_string</code>.
+</div>
+</td></tr>
+<tr><td align="left"><br>I</td></tr>
+<tr><td><a href="Cmdliner.Arg.html#VALinfo">info</a> [<a href="Cmdliner.Arg.html">Cmdliner.Arg</a>]</td>
+<td><div class="info">
+<code class="code">info docs docv doc names</code> defines information for 
+      an argument.
+</div>
+</td></tr>
+<tr><td><a href="Cmdliner.Term.html#VALinfo">info</a> [<a href="Cmdliner.Term.html">Cmdliner.Term</a>]</td>
+<td><div class="info">
+<code class="code">info sdocs man docs doc version name</code> is a term information
+      such that:
+       <code class="code">name</code> is the name of the program or the command., <code class="code">version</code> is the version string of the program, ignored
+         for commands., <code class="code">doc</code> is a one line description of the program or command used 
+         for the <code class="code"><span class="constructor">NAME</span></code> section of the term's man page. For commands this
+         description is also used in the list of commands of the main
+         term's man page., <code class="code">docs</code>, only for commands, the title of the section of the main 
+         term's man page where it should be listed (defaults to <code class="code"><span class="string">"COMMANDS"</span></code>)., <code class="code">man</code> is the text of the man page for the term. In the text,
+         the variables <code class="code"><span class="string">"$(tname)"</span></code> and <code class="code"><span class="string">"$(mname)"</span></code> can respectively be 
+         used to refer to the value of <code class="code">name</code> and the main term's name.
+      , <code class="code">sdocs</code> defines the title of the section in which the
+         standard <code class="code">--help</code> and <code class="code">--version</code> arguments are listed.
+</div>
+</td></tr>
+<tr><td><a href="Cmdliner.Arg.html#VALint">int</a> [<a href="Cmdliner.Arg.html">Cmdliner.Arg</a>]</td>
+<td><div class="info">
+<code class="code">int</code> converts values with <code class="code">int_of_string</code>.
+</div>
+</td></tr>
+<tr><td><a href="Cmdliner.Arg.html#VALint32">int32</a> [<a href="Cmdliner.Arg.html">Cmdliner.Arg</a>]</td>
+<td><div class="info">
+<code class="code">int32</code> converts values with <code class="code"><span class="constructor">Int32</span>.of_string</code>.
+</div>
+</td></tr>
+<tr><td><a href="Cmdliner.Arg.html#VALint64">int64</a> [<a href="Cmdliner.Arg.html">Cmdliner.Arg</a>]</td>
+<td><div class="info">
+<code class="code">int64</code> converts values with <code class="code"><span class="constructor">Int64</span>.of_string</code>.
+</div>
+</td></tr>
+<tr><td align="left"><br>L</td></tr>
+<tr><td><a href="Cmdliner.Arg.html#VALlast">last</a> [<a href="Cmdliner.Arg.html">Cmdliner.Arg</a>]</td>
+<td><div class="info">
+<code class="code">last a</code> is a term that fails if <code class="code">a</code>'s list is empty and evaluates
+      to the value of the last element of the list otherwise.
+</div>
+</td></tr>
+<tr><td><a href="Cmdliner.Arg.html#VALlist">list</a> [<a href="Cmdliner.Arg.html">Cmdliner.Arg</a>]</td>
+<td><div class="info">
+<code class="code">list sep c</code> splits the argument at each <code class="code">sep</code> (defaults to <code class="code"><span class="string">','</span></code>) 
+      character and converts each substrings with <code class="code">c</code>.
+</div>
+</td></tr>
+<tr><td align="left"><br>M</td></tr>
+<tr><td><a href="Cmdliner.Term.html#VALmain_name">main_name</a> [<a href="Cmdliner.Term.html">Cmdliner.Term</a>]</td>
+<td><div class="info">
+<code class="code">main_name</code> is a term that evaluates to the "main" term's name.
+</div>
+</td></tr>
+<tr><td><a href="Cmdliner.Term.html#VALman_format">man_format</a> [<a href="Cmdliner.Term.html">Cmdliner.Term</a>]</td>
+<td><div class="info">
+<code class="code">man_format</code> is a term that defines a <code class="code">--man-format</code> option and 
+      evaluates to a value that can be used with <a href="Cmdliner.Manpage.html#VALprint"><code class="code"><span class="constructor">Cmdliner</span>.<span class="constructor">Manpage</span>.print</code></a>.
+</div>
+</td></tr>
+<tr><td align="left"><br>N</td></tr>
+<tr><td><a href="Cmdliner.Term.html#VALname">name</a> [<a href="Cmdliner.Term.html">Cmdliner.Term</a>]</td>
+<td><div class="info">
+<code class="code">name ti</code> is the name of the term information.
+</div>
+</td></tr>
+<tr><td><a href="Cmdliner.Arg.html#VALnativeint">nativeint</a> [<a href="Cmdliner.Arg.html">Cmdliner.Arg</a>]</td>
+<td><div class="info">
+<code class="code">nativeint</code> converts values with <code class="code"><span class="constructor">Nativeint</span>.of_string</code>.
+</div>
+</td></tr>
+<tr><td><a href="Cmdliner.Arg.html#VALnon_dir_file">non_dir_file</a> [<a href="Cmdliner.Arg.html">Cmdliner.Arg</a>]</td>
+<td><div class="info">
+<code class="code">non_dir_file</code> converts a value with the identity function and checks
+      with <code class="code"><span class="constructor">Sys</span>.file_exists</code> and <code class="code"><span class="constructor">Sys</span>.is_directory</code> 
+      that a non directory file with that name exists.
+</div>
+</td></tr>
+<tr><td><a href="Cmdliner.Arg.html#VALnon_empty">non_empty</a> [<a href="Cmdliner.Arg.html">Cmdliner.Arg</a>]</td>
+<td><div class="info">
+<code class="code">non_empty a</code> is term that fails if <code class="code">a</code>'s list is empty and 
+      evaluates to <code class="code">a</code>'s list otherwise.
+</div>
+</td></tr>
+<tr><td align="left"><br>O</td></tr>
+<tr><td><a href="Cmdliner.Arg.html#VALopt">opt</a> [<a href="Cmdliner.Arg.html">Cmdliner.Arg</a>]</td>
+<td><div class="info">
+<code class="code">opt vopt c v i</code> is an <code class="code"><span class="keywordsign">'</span>a</code> argument defined by the value of 
+      an optional argument that may appear <em>at most</em> once on the command
+      line under one of the names specified by <code class="code">i</code>.
+</div>
+</td></tr>
+<tr><td><a href="Cmdliner.Arg.html#VALopt_all">opt_all</a> [<a href="Cmdliner.Arg.html">Cmdliner.Arg</a>]</td>
+<td><div class="info">
+<code class="code">opt_all vopt c v i</code> is like <a href="Cmdliner.Arg.html#VALopt"><code class="code"><span class="constructor">Cmdliner</span>.<span class="constructor">Arg</span>.opt</code></a> except the optional argument may 
+      appear more than once.
+</div>
+</td></tr>
+<tr><td align="left"><br>P</td></tr>
+<tr><td><a href="Cmdliner.Arg.html#VALpair">pair</a> [<a href="Cmdliner.Arg.html">Cmdliner.Arg</a>]</td>
+<td><div class="info">
+<code class="code">pair sep c0 c1</code> splits the argument at the <em>first</em> <code class="code">sep</code> character 
+      (defaults to <code class="code"><span class="string">','</span></code>) and respectively converts the substrings with 
+      <code class="code">c0</code> and <code class="code">c1</code>.
+</div>
+</td></tr>
+<tr><td><a href="Cmdliner.Arg.html#VALpos">pos</a> [<a href="Cmdliner.Arg.html">Cmdliner.Arg</a>]</td>
+<td><div class="info">
+<code class="code">pos rev n c v i</code> is an <code class="code"><span class="keywordsign">'</span>a</code> argument defined by the <code class="code">n</code>th
+      positional argument of the command line as converted by <code class="code">c</code>.
+</div>
+</td></tr>
+<tr><td><a href="Cmdliner.Arg.html#VALpos_all">pos_all</a> [<a href="Cmdliner.Arg.html">Cmdliner.Arg</a>]</td>
+<td><div class="info">
+<code class="code">pos_all c v i</code> is an <code class="code"><span class="keywordsign">'</span>a list</code> argument that holds 
+      all the positional arguments of the command line as converted
+      by <code class="code">c</code> or <code class="code">v</code> if there are none.
+</div>
+</td></tr>
+<tr><td><a href="Cmdliner.Arg.html#VALpos_left">pos_left</a> [<a href="Cmdliner.Arg.html">Cmdliner.Arg</a>]</td>
+<td><div class="info">
+<code class="code">pos_left rev n c v i</code> is an <code class="code"><span class="keywordsign">'</span>a list</code> argument that holds
+      all the positional arguments as converted by <code class="code">c</code> found on the left
+      of the <code class="code">n</code>th positional argument or <code class="code">v</code> if there are none.
+</div>
+</td></tr>
+<tr><td><a href="Cmdliner.Arg.html#VALpos_right">pos_right</a> [<a href="Cmdliner.Arg.html">Cmdliner.Arg</a>]</td>
+<td><div class="info">
+<code class="code">pos_right</code> is like <a href="Cmdliner.Arg.html#VALpos_left"><code class="code"><span class="constructor">Cmdliner</span>.<span class="constructor">Arg</span>.pos_left</code></a> except it holds all the positional
+      arguments found on the right of the specified positional argument.
+</div>
+</td></tr>
+<tr><td><a href="Cmdliner.Manpage.html#VALprint">print</a> [<a href="Cmdliner.Manpage.html">Cmdliner.Manpage</a>]</td>
+<td><div class="info">
+<code class="code">print ~subst fmt ppf page</code> prints <code class="code">page</code> on <code class="code">ppf</code> in the format <code class="code">fmt</code>.
+</div>
+</td></tr>
+<tr><td><a href="Cmdliner.Term.html#VALpure">pure</a> [<a href="Cmdliner.Term.html">Cmdliner.Term</a>]</td>
+<td><div class="info">
+<code class="code">pure v</code> is a term that evaluates to <code class="code">v</code>.
+</div>
+</td></tr>
+<tr><td align="left"><br>R</td></tr>
+<tr><td><a href="Cmdliner.Arg.html#VALrequired">required</a> [<a href="Cmdliner.Arg.html">Cmdliner.Arg</a>]</td>
+<td><div class="info">
+<code class="code">required a</code> is a term that fails if <code class="code">a</code>'s value is <code class="code"><span class="constructor">None</span></code> and
+      evaluates to the value of <code class="code"><span class="constructor">Some</span></code> otherwise.
+</div>
+</td></tr>
+<tr><td><a href="Cmdliner.Term.html#VALret">ret</a> [<a href="Cmdliner.Term.html">Cmdliner.Term</a>]</td>
+<td><div class="info">
+<code class="code">ret v</code> is a term whose evaluation depends on the case
+      to which <code class="code">v</code> evaluates.
+</div>
+</td></tr>
+<tr><td align="left"><br>S</td></tr>
+<tr><td><a href="Cmdliner.Arg.html#VALsome">some</a> [<a href="Cmdliner.Arg.html">Cmdliner.Arg</a>]</td>
+<td><div class="info">
+<code class="code">some none c</code> is like the converter <code class="code">c</code> except it returns
+      <code class="code"><span class="constructor">Some</span></code> value.
+</div>
+</td></tr>
+<tr><td><a href="Cmdliner.Arg.html#VALstring">string</a> [<a href="Cmdliner.Arg.html">Cmdliner.Arg</a>]</td>
+<td><div class="info">
+<code class="code">string</code> converts values with the identity function.
+</div>
+</td></tr>
+<tr><td align="left"><br>T</td></tr>
+<tr><td><a href="Cmdliner.Arg.html#VALt2">t2</a> [<a href="Cmdliner.Arg.html">Cmdliner.Arg</a>]</td>
+<td><div class="info">
+<a href="Cmdliner.Arg.html#VALt2"><code class="code"><span class="constructor">Cmdliner</span>.<span class="constructor">Arg</span>.t2</code></a> is <a href="Cmdliner.Arg.html#VALpair"><code class="code"><span class="constructor">Cmdliner</span>.<span class="constructor">Arg</span>.pair</code></a>.
+</div>
+</td></tr>
+<tr><td><a href="Cmdliner.Arg.html#VALt3">t3</a> [<a href="Cmdliner.Arg.html">Cmdliner.Arg</a>]</td>
+<td><div class="info">
+<code class="code">t3 sep c0 c1 c2</code> splits the argument at the <em>first</em> two <code class="code">sep</code> 
+      characters (defaults to <code class="code"><span class="string">','</span></code>) and respectively converts the 
+      substrings with <code class="code">c0</code>, <code class="code">c1</code> and <code class="code">c2</code>.
+</div>
+</td></tr>
+<tr><td><a href="Cmdliner.Arg.html#VALt4">t4</a> [<a href="Cmdliner.Arg.html">Cmdliner.Arg</a>]</td>
+<td><div class="info">
+<code class="code">t4 sep c0 c1 c2 c3</code> splits the argument at the <em>first</em> three <code class="code">sep</code> 
+      characters (defaults to <code class="code"><span class="string">','</span></code>) respectively converts the substrings 
+      with <code class="code">c0</code>, <code class="code">c1</code>, <code class="code">c2</code> and <code class="code">c3</code>.
+</div>
+</td></tr>
+<tr><td align="left"><br>V</td></tr>
+<tr><td><a href="Cmdliner.Arg.html#VALvalue">value</a> [<a href="Cmdliner.Arg.html">Cmdliner.Arg</a>]</td>
+<td><div class="info">
+<code class="code">value a</code> is a term that evaluates to <code class="code">a</code>'s value.
+</div>
+</td></tr>
+<tr><td><a href="Cmdliner.Arg.html#VALvflag">vflag</a> [<a href="Cmdliner.Arg.html">Cmdliner.Arg</a>]</td>
+<td><div class="info">
+<code class="code">vflag v [v</code><sub class="subscript">0</sub><code class="code">,i</code><sub class="subscript">0</sub><code class="code">;...]</code> is an <code class="code"><span class="keywordsign">'</span>a</code> argument defined 
+      by an optional flag that may appear <em>at most</em> once on 
+      the command line under one of the names specified in the <code class="code">i</code><sub class="subscript">k</sub>
+      values.
+</div>
+</td></tr>
+<tr><td><a href="Cmdliner.Arg.html#VALvflag_all">vflag_all</a> [<a href="Cmdliner.Arg.html">Cmdliner.Arg</a>]</td>
+<td><div class="info">
+<code class="code">vflag_all v l</code> is like <a href="Cmdliner.Arg.html#VALvflag"><code class="code"><span class="constructor">Cmdliner</span>.<span class="constructor">Arg</span>.vflag</code></a> except the flag may appear more
+      than once.
+</div>
+</td></tr>
+</table>
+</body>
+</html>

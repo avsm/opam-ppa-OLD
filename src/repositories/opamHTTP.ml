@@ -49,10 +49,11 @@ let make_state ~download_index repo =
   if List.mem_assoc repo.repo_address !state_cache then
     List.assoc repo.repo_address !state_cache
   else (
-    let remote_index_file = repo.repo_address // "urls.txt" in
+    let repo_address = OpamFilename.raw_dir (fst repo.repo_address) in
+    let remote_index_file = repo_address // "urls.txt" in
     let local_index_file = index_file repo.repo_root in
     let local_index_file_save = index_file_save repo.repo_root in
-    let remote_index_archive = repo.repo_address // "index.tar.gz" in
+    let remote_index_archive = repo_address // "index.tar.gz" in
     let local_index_archive = repo.repo_root // "index.tar.gz" in
     let index =
       if download_index then (
@@ -81,7 +82,7 @@ let make_state ~download_index repo =
             | None  ->  0o640
             | Some p -> p in
           let digest = OpamFilename.Attribute.md5 r in
-          let remote = OpamFilename.create repo.repo_address base in
+          let remote = repo_address // OpamFilename.Base.to_string base in
           let local = OpamFilename.create repo.repo_root base in
           OpamFilename.Map.add remote local rl,
           OpamFilename.Map.add local remote lr,
@@ -95,7 +96,7 @@ let make_state ~download_index repo =
            [], []) in
       remote_local, local_remote, locals, perms, digests in
     let state = {
-      remote_dir = repo.repo_address;
+      remote_dir = repo_address;
       local_dir  = repo.repo_root;
       remote_index_archive; local_index_archive;
       local_files; remote_local; local_remote;
@@ -149,10 +150,8 @@ module B = struct
           "Cannot find index.tar.gz on the OPAM repository. \
            Initialisation might take some time.\n"
     with _ ->
-      OpamGlobals.error_and_exit
-        "Error: %s is unavailable."
-        (OpamFilename.Dir.to_string repo.repo_address)
-
+      OpamGlobals.error_and_exit "Error: %s is unavailable."
+        (string_of_address repo.repo_address)
 
   let curl ~remote_file ~local_file =
     log "curl";
@@ -162,11 +161,9 @@ module B = struct
     OpamGlobals.msg "Downloading %s\n" (OpamFilename.to_string remote_file);
     OpamFilename.download ~overwrite:true remote_file local_dir
 
-  let pull_files ~all repo =
-    log "pull-files";
-    let local_files =
-      if all then OpamFilename.rec_files repo.repo_root
-      else local_files repo in
+  let pull_repo repo =
+    log "pull-repo";
+    let local_files = local_files repo in
     let state = make_state ~download_index:true repo in
     if state.local_dir <> state.remote_dir then (
       let (--) = OpamFilename.Set.diff in
@@ -184,17 +181,6 @@ module B = struct
       log "new_files: %s" (OpamFilename.Set.to_string new_files);
       OpamFilename.Set.iter OpamFilename.remove to_delete;
 
-      let prefix, packages = OpamRepository.packages repo in
-      OpamPackage.Set.iter (fun nv ->
-        let prefix = OpamRepository.find_prefix prefix nv in
-        let opam_f = OpamPath.Repository.opam repo prefix nv in
-        if not (OpamFilename.exists opam_f) then (
-          OpamFilename.rmdir (OpamPath.Repository.package repo prefix nv);
-          OpamFilename.rmdir (OpamPath.Repository.tmp_dir repo nv);
-          OpamFilename.remove (OpamPath.Repository.archive repo nv);
-        )
-      ) packages;
-
       if OpamFilename.Set.cardinal new_files > 4 then
         init repo
       else
@@ -202,35 +188,25 @@ module B = struct
           let remote_file = OpamFilename.Map.find local_file state.local_remote in
           ignore (curl ~remote_file ~local_file)
         ) new_files;
-      if OpamFilename.Set.is_empty new_files then
-        Up_to_date repo.repo_root
-      else
-        Result repo.repo_root
-    ) else
-      Up_to_date repo.repo_root
-
-  let pull_dir dirname address =
-    log "pull-dir";
-    let repo = repo dirname address in
-    pull_files ~all:true repo
-
-  let pull_repo repo =
-    log "pull-repo";
-    ignore (pull_files ~all:false repo)
+    )
 
   (* XXX: add a proxy *)
-  let pull_file dirname filename =
+  let pull_url package dirname remote_url =
     log "pull-file";
-    OpamGlobals.msg "Downloading %s\n" (OpamFilename.to_string filename);
+    let remote_url = string_of_address remote_url in
+    let filename = OpamFilename.of_string remote_url in
+    OpamGlobals.msg "%-10s Downloading %s\n"
+      (OpamPackage.to_string package)
+      (OpamFilename.to_string filename);
     try
       let local_file = OpamFilename.download ~overwrite:true filename dirname in
-      Result local_file
+      Result (F local_file)
     with _ ->
-      Not_available
+      Not_available remote_url
 
   let pull_archive repo filename =
     log "pull-archive";
-    let state = make_state ~download_index:true repo in
+    let state = make_state ~download_index:false repo in
     if OpamFilename.Map.mem filename state.remote_local then (
       let local_file = OpamFilename.Map.find filename state.remote_local in
       if is_up_to_date state local_file then
@@ -243,7 +219,10 @@ module B = struct
         Result result
       )
     ) else
-      Not_available
+      Not_available (OpamFilename.to_string filename)
+
+  let revision _ =
+    None
 
 end
 
@@ -253,20 +232,12 @@ let make_urls_txt repo_root =
   let index =
     List.fold_left (fun set f ->
       if not (OpamFilename.exists f) then set
-      else (
-        let basename =
-          OpamFilename.Base.of_string (OpamFilename.remove_prefix repo_root f) in
-        let perm =
-          let s = Unix.stat (OpamFilename.to_string f) in
-          s.Unix.st_perm in
-        let digest = OpamFilename.digest f in
-        let attr = OpamFilename.Attribute.create basename digest perm in
+      else
+        let attr = OpamFilename.to_attribute repo_root f in
         OpamFilename.Attribute.Set.add attr set
-      )
     ) OpamFilename.Attribute.Set.empty (local_files repo)
   in
-  if not (OpamFilename.Attribute.Set.is_empty index) then
-    OpamFile.File_attributes.write local_index_file index;
+  OpamFile.File_attributes.write local_index_file index;
   index
 
 let make_index_tar_gz repo_root =

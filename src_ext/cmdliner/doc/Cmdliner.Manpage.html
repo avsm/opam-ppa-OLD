@@ -1,0 +1,74 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+<link rel="stylesheet" href="style.css" type="text/css">
+<meta content="text/html; charset=utf-8" http-equiv="Content-Type">
+<link rel="Start" href="index.html">
+<link rel="next" href="Cmdliner.Term.html">
+<link rel="Up" href="Cmdliner.html">
+<link title="Index of types" rel=Appendix href="index_types.html">
+<link title="Index of values" rel=Appendix href="index_values.html">
+<link title="Index of modules" rel=Appendix href="index_modules.html">
+<link title="Cmdliner" rel="Chapter" href="Cmdliner.html"><link title="Man pages" rel="Section" href="#1_Manpages">
+<title>Cmdliner.Manpage</title>
+</head>
+<body>
+<div class="navbar">&nbsp;<a class="up" href="Cmdliner.html" title="Cmdliner">Up</a>
+&nbsp;<a class="post" href="Cmdliner.Term.html" title="Cmdliner.Term">Next</a>
+</div>
+<h1>Module <a href="type_Cmdliner.Manpage.html">Cmdliner.Manpage</a></h1>
+<pre><span class="keyword">module</span> Manpage: <code class="code"><span class="keyword">sig</span></code> <a href="Cmdliner.Manpage.html">..</a> <code class="code"><span class="keyword">end</span></code></pre><div class="info">
+Man page specification. 
+<p>
+
+    Man page generation is automatically handled by <code class="code"><span class="constructor">Cmdliner</span></code>. The
+    <a href="Cmdliner.Manpage.html#TYPEblock"><code class="code"><span class="constructor">Cmdliner</span>.<span class="constructor">Manpage</span>.block</code></a> type is used to define a man page's content.
+<p>
+
+    The <a href="Cmdliner.Manpage.html#VALprint"><code class="code"><span class="constructor">Cmdliner</span>.<span class="constructor">Manpage</span>.print</code></a> function can be useful if the client wants to define
+    other man pages (e.g. to implement a help command).<br>
+</div>
+<hr width="100%">
+<br>
+<h1 id="1_Manpages">Man pages</h1><br>
+<pre><span id="TYPEblock"><span class="keyword">type</span> <code class="type"></code>block</span> = <code class="type">[ `I of string * string | `Noblank | `P of string | `S of string ]</code> </pre>
+<div class="info">
+The type for a block of man page text. 
+<p>
+
+      <ul>
+<li><code class="code"><span class="keywordsign">`</span><span class="constructor">S</span> s</code> introduces a new section <code class="code">s</code>.</li>
+<li><code class="code"><span class="keywordsign">`</span><span class="constructor">P</span> t</code> is a new paragraph with text <code class="code">t</code>.</li>
+<li><code class="code"><span class="keywordsign">`</span><span class="constructor">I</span> (l,t)</code> is an indented paragraph with label
+      <code class="code">l</code> and text <code class="code">t</code>.</li>
+<li><code class="code"><span class="keywordsign">`</span><span class="constructor">Noblank</span></code> suppresses the blank line introduced between two blocks.</li>
+</ul>
+
+<p>
+
+      In text strings <code class="code">t</code>, whitespace and newlines are not significant
+      and are all collapsed to a single space. In labels <code class="code">l</code> and text
+      strings <code class="code">t</code>, the syntax <code class="code"><span class="string">"$(i,italic text)"</span></code> and <code class="code"><span class="string">"$(b,bold
+      text)"</span></code> can be used to respectively produce italic and bold
+      text.<br>
+</div>
+
+<pre><span id="TYPEtitle"><span class="keyword">type</span> <code class="type"></code>title</span> = <code class="type">string * int * string * string * string</code> </pre>
+<div class="info">
+The type for man page titles. Describes the man page
+      <code class="code">title</code>, <code class="code">section</code>, <code class="code">center_footer</code>, <code class="code">left_footer</code>, <code class="code">center_header</code>.<br>
+</div>
+
+<pre><span id="TYPEt"><span class="keyword">type</span> <code class="type"></code>t</span> = <code class="type"><a href="Cmdliner.Manpage.html#TYPEtitle">title</a> * <a href="Cmdliner.Manpage.html#TYPEblock">block</a> list</code> </pre>
+<div class="info">
+The type for a man page. A title and the page text as a list of blocks.<br>
+</div>
+
+<pre><span id="VALprint"><span class="keyword">val</span> print</span> : <code class="type">?subst:(string -> string) -><br>       [ `Groff | `Pager | `Plain ] -><br>       Format.formatter -> <a href="Cmdliner.Manpage.html#TYPEt">t</a> -> unit</code></pre><div class="info">
+<code class="code">print ~subst fmt ppf page</code> prints <code class="code">page</code> on <code class="code">ppf</code> in the format <code class="code">fmt</code>.
+      If <code class="code">fmt</code> is <code class="code"><span class="keywordsign">`</span><span class="constructor">Pager</span></code> the function tries to write the formatted
+      result in a pager, if that fails the format <code class="code"><span class="keywordsign">`</span><span class="constructor">Plain</span></code> is written 
+      on <code class="code">ppf</code>. <code class="code">subst</code> can be used to perform variable substitution, 
+      see <code class="code"><span class="constructor">Buffer</span>.add_substitute</code> (defaults to the identity).<br>
+</div>
+</body></html>
