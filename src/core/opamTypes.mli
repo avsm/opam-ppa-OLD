@@ -37,15 +37,21 @@ type filename_set = OpamFilename.Set.t
 type 'a filename_map = 'a OpamFilename.Map.t
 
 (** Generalized file type *)
-type generic_file =
+type generic_file = OpamFilename.generic_file =
   | D of dirname
   | F of filename
 
 (** Download result *)
 type 'a download =
   | Up_to_date of 'a
-  | Not_available
+  | Not_available of string
   | Result of 'a
+
+(** Upcast a downloaded directory. *)
+val download_dir: dirname download -> generic_file download
+
+(** Upcast a downloaded file. *)
+val download_file: filename download -> generic_file download
 
 (** {2 Packages} *)
 
@@ -113,6 +119,9 @@ type variable_contents = OpamVariable.variable_contents =
   | B of bool
   | S of string
 
+(** A map from variables to their contents (i.e an environment) *)
+type variable_map = OpamVariable.variable_contents OpamVariable.Map.t
+
 (** Content of [pp] variables *)
 type ppflag =
   | Camlp4 of string list
@@ -151,14 +160,23 @@ type 'a repository_name_map = 'a OpamRepositoryName.Map.t
 (** Repository kind *)
 type repository_kind = [`http|`local|`git|`darcs|`hg]
 
+(** Repository address *)
+type address = string * string option
+
+(** Print an address *)
+val string_of_address: address -> string
+
+(** Parse an address *)
+val address_of_string: string -> address
+
+(** Guess the repository kind *)
+val guess_repository_kind: repository_kind option -> address -> repository_kind
+
 (** Pretty-print repository kinds. *)
 val string_of_repository_kind: [`http|`local|`git|`darcs|`hg] -> string
 
 (** Parser of repository kinds. Raise an error if the kind is not valid. *)
 val repository_kind_of_string: string -> [`http|`local|`git|`darcs|`hg]
-
-(** Repository address *)
-type address = dirname
 
 (** Repository root *)
 type repository_root = dirname
@@ -185,10 +203,7 @@ type 'a action =
   (** The package must be deleted. *)
   | To_delete of 'a
 
-  (** The package is already installed, but it must be recompiled.
-      The second parameter is the collection of packages causing the
-      reinstallation. An empty list means that the package has been
-      modified upstream. *)
+  (** The package is already installed, but it must be recompiled. *)
   | To_recompile of 'a
 
 (** The possible causes of an action. *)
@@ -258,10 +273,12 @@ type solution = PackageActionGraph.solution
 (** Solver result *)
 type solver_result =
   | Nothing_to_do
-  | OK
+  | OK of package action list (** List of successful actions *)
   | Aborted
   | No_solution
-  | Error of package action list
+  | Error of package action list * package action list * package action list
+  (** List of successful actions, list of actions with errors,
+      list of remaining undone actions *)
 
 (** Solver result *)
 type ('a, 'b) result =
@@ -318,6 +335,7 @@ type pin_option =
   | Darcs of address
   | Hg of address
   | Unpin
+  | Edit
 
 (** Pinned packages *)
 type pin = {
@@ -329,7 +347,10 @@ type pin = {
 val string_of_pin: pin -> string
 
 (** Pin kind *)
-type pin_kind = [`version|`git|`darcs|`hg|`local|`unpin]
+type pin_kind = [`version|`git|`darcs|`hg|`local]
+
+(** Convert a pin kind to a repository kind *)
+val repository_kind_of_pin_kind: pin_kind -> repository_kind option
 
 (** Pretty-printing of pin kinds. *)
 val pin_kind_of_string: string -> pin_kind
@@ -340,9 +361,11 @@ val string_of_pin_kind: pin_kind -> string
 (** Read pin options args *)
 val pin_option_of_string: ?kind:pin_kind -> string -> pin_option
 
-val path_of_pin_option: pin_option -> string
+(** Convert a pin option to a string *)
+val string_of_pin_option: pin_option -> string
 
-val kind_of_pin_option: pin_option -> pin_kind
+(** Get the pin kind from a pin option *)
+val kind_of_pin_option: pin_option -> pin_kind option
 
 (** Configuration requests *)
 type config = {
@@ -498,24 +521,18 @@ type env_updates = (string * string * string) list
 (** Tags *)
 type tags = OpamMisc.StringSet.t OpamMisc.StringSetMap.t
 
-(** {2 Repository state} *)
+(** {2 Repository and global states} *)
 
-(** Compiler repository state *)
-type compiler_repository_state = {
-  comp_repo     : repository;
-  comp_file     : filename;
-  comp_descr    : filename option;
-  comp_checksums: string list;
-}
+(** Checksums *)
+type checksums = string list
 
-(** Package repository state *)
-type package_repository_state = {
-  pkg_repo     : repository;
-  pkg_opam     : filename;
-  pkg_descr    : filename option;
-  pkg_archive  : filename option;
-  pkg_url      : filename option;
-  pkg_files    : dirname option;
-  pkg_metadata : string list;       (** Checksum of metadata *)
-  pkg_contents : string list;       (** Checksum of contents *)
+(** {2 JSON} *)
+type json = OpamJson.t
+
+(** {2 Updates} *)
+type 'a updates = {
+  created: 'a;
+  updated: 'a;
+  deleted: 'a;
+  changed: 'a;
 }

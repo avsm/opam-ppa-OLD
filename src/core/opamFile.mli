@@ -100,6 +100,9 @@ module OPAM: sig
   (** OS constraint *)
   val os: t -> (bool * string) generic_formula
 
+  (** Availability formula (OS + compiler constraints) *)
+  val available: t -> filter
+
   (** Package maintainer *)
   val maintainer: t -> string
 
@@ -157,8 +160,11 @@ module OPAM: sig
   (** Commands to build the documentation *)
   val build_doc: t -> command list
 
-  (** Commands to build the documentation *)
+  (** Messages to display before taking action *)
   val messages: t -> (string * filter option) list
+
+  (** Messages to display at end of install *)
+  val post_messages: t -> (string * filter option) list
 
   (** Construct as [depends] *)
   val with_depends : t -> formula -> t
@@ -193,6 +199,9 @@ end
 module Descr: sig
 
   include IO_FILE
+
+  (** Create a an abstract description file from a string *)
+  val of_string: string -> t
 
   (** Return the first line *)
   val synopsis: t -> string
@@ -414,8 +423,10 @@ module URL: sig
 
   include IO_FILE
 
+  val create: repository_kind option -> address -> t
+
   (** URL address *)
-  val url: t -> string
+  val url: t -> address
 
   (** Backend kind (could be curl/rsync/git/darcs/hg at the moment) *)
   val kind: t -> repository_kind option

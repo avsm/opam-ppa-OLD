@@ -21,8 +21,9 @@ module type VCS = sig
   val exists: repository -> bool
   val init: repository -> unit
   val fetch: repository -> unit
-  val merge: repository -> unit
+  val reset: repository -> unit
   val diff: repository -> bool
+  val revision: repository -> string
 end
 
 
@@ -31,17 +32,10 @@ module Make (VCS: VCS) = struct
   let init repo =
     VCS.init repo
 
-  let pull_file dirname filename =
-    let local_file = OpamFilename.create dirname (OpamFilename.basename filename) in
-    if OpamFilename.exists local_file then
-      Up_to_date local_file
-    else
-      Not_available
-
   let pull repo =
     VCS.fetch repo;
     let diff = VCS.diff repo in
-    VCS.merge repo;
+    VCS.reset repo;
     diff
 
   let check_updates repo =
@@ -51,7 +45,6 @@ module Make (VCS: VCS) = struct
       None
 
   let rec pull_repo repo =
-    log "pull-repo";
     match check_updates repo with
     | None ->
       OpamFilename.mkdir repo.repo_root;
@@ -61,22 +54,40 @@ module Make (VCS: VCS) = struct
       if updated then Result repo.repo_root
       else Up_to_date repo.repo_root
 
-  let pull_dir dirname address =
-    log "pull-dir";
+  let repo dirname address =
     let repo = OpamRepository.default () in
-    let repo = {
+    {
       repo with
       repo_root    = dirname;
       repo_address = address;
-    } in
-    pull_repo repo
+    }
+
+  let pull_url package dirname remote_url =
+    let repo = repo dirname remote_url in
+    OpamGlobals.msg "%-10s Fetching %s\n"
+      (OpamPackage.to_string package)
+      (string_of_address remote_url);
+    download_dir (pull_repo repo)
 
   let pull_repo repo =
-    log "pull-repo";
+    OpamGlobals.msg "%-10s Fetching %s\n"
+      (OpamRepositoryName.to_string repo.repo_name)
+      (string_of_address repo.repo_address);
     ignore (pull_repo repo)
 
   let pull_archive repo filename =
-    log "pull-archive";
-    pull_file (OpamPath.Repository.archives_dir repo) filename
+    let dirname = OpamPath.Repository.archives_dir repo in
+    let basename = OpamFilename.basename filename in
+    let local_file = OpamFilename.create dirname basename in
+    if OpamFilename.exists local_file then (
+      OpamGlobals.msg "%-10s Using %s\n"
+        (OpamRepositoryName.to_string repo.repo_name)
+        (OpamFilename.prettify local_file);
+      Up_to_date local_file
+    ) else
+      Not_available (OpamFilename.to_string filename)
+
+  let revision repo =
+    Some (OpamPackage.Version.of_string (VCS.revision repo))
 
 end

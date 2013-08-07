@@ -85,11 +85,15 @@ module Section = struct
       | None   -> n
       | Some s -> Printf.sprintf "%s.%s" n (string_of_section s)
 
+    let to_json x =
+      `String (to_string x)
+
     module O = struct
       type tmp = t
       type t = tmp
       let compare = compare
       let to_string = to_string
+      let to_json = to_json
     end
 
     module Set = OpamMisc.Set.Make (O)
@@ -120,20 +124,18 @@ module Full = struct
 
   let of_string s =
     match OpamMisc.rcut_at s ':' with
-    | None ->
-      create_global
-        (OpamPackage.Name.of_string OpamGlobals.default_package)
-        (of_string s)
+    | None -> create_global OpamPackage.Name.global_config (of_string s)
     | Some (p,v) ->
       let v = of_string v in
       match OpamMisc.cut_at p '.' with
-      | None -> create_global (OpamPackage.Name.of_string p) v
-      | Some (p,s) -> create_local (OpamPackage.Name.of_string p) (Section.of_string s) v
+      | None       -> create_global (OpamPackage.Name.of_string p) v
+      | Some (p,s) -> create_local
+                        (OpamPackage.Name.of_string p) (Section.of_string s) v
 
   let to_string t =
     let package =
       let n = OpamPackage.Name.to_string (package t) in
-      if n = OpamGlobals.default_package then
+      if n = OpamGlobals.global_config then
         ""
       else
         n in
@@ -148,11 +150,15 @@ module Full = struct
         prefix ^ ":" in
     prefix ^ to_string t.variable
 
+  let to_json x =
+    `String (to_string x)
+
   module O = struct
     type tmp = t
     type t = tmp
     let compare = compare
     let to_string = to_string
+    let to_json = to_json
   end
 
   module Set = OpamMisc.Set.Make(O)

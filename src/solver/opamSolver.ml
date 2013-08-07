@@ -46,6 +46,7 @@ let opam2debian universe depopts package =
     if depopts then
       let opts = List.rev_map OpamFormula.of_conjunction opts in
       And (depends, Or(depends, OpamFormula.ors opts))
+    else if universe.u_action = Remove then depends
     else
       let mem_installed conj =
         let is_installed (name,_) =
@@ -324,21 +325,22 @@ let solution_is_empty t =
   t.PackageActionGraph.to_remove = []
   && PackageActionGraph.is_empty t.PackageActionGraph.to_process
 
-let print_solution ~messages t =
+let print_solution ~messages ~rewrite t =
   if not (solution_is_empty t) then
     let causes pkg =
       try List.assoc pkg t.PackageActionGraph.root_causes
       with Not_found -> Unknown in
     List.iter (fun p -> OpamGlobals.msg "%s\n"
-        (PackageAction.string_of_action ~causes (To_delete p))
+        (PackageAction.string_of_action ~causes (To_delete (rewrite p)))
     ) t.PackageActionGraph.to_remove;
     PackageActionGraph.Topological.iter (function action ->
-      OpamGlobals.msg "%s\n" (PackageAction.string_of_action ~causes action);
-      match action with
-      | To_change(_,p)
-      | To_recompile p -> List.iter (OpamGlobals.msg "     %s.\n")  (messages p)
-      | To_delete _    -> ()
-    ) t.PackageActionGraph.to_process
+        let action = map_action rewrite action in
+        OpamGlobals.msg "%s\n" (PackageAction.string_of_action ~causes action);
+        match action with
+        | To_change(_,p)
+        | To_recompile p -> List.iter (OpamGlobals.msg "     %s.\n")  (messages p)
+        | To_delete _    -> ()
+      ) t.PackageActionGraph.to_process
 
 let sequential_solution l =
   let g = PackageActionGraph.create () in

@@ -22,8 +22,8 @@ module Lines = struct
   (* Lines of space separated words *)
   type t = string list list
 
-  let of_string str =
-    OpamLineLexer.main (Lexing.from_string str)
+  let of_channel ic =
+    OpamLineLexer.main (Lexing.from_channel ic)
 
   let to_string (lines: t) =
     let buf = Buffer.create 1024 in
@@ -39,9 +39,9 @@ module Syntax = struct
 
   type t = file
 
-  let of_string filename str =
+  let of_channel (filename:filename) (ic:in_channel) =
+    let lexbuf = Lexing.from_channel ic in
     let filename = OpamFilename.to_string filename in
-    let lexbuf = Lexing.from_string str in
     lexbuf.Lexing.lex_curr_p <- { lexbuf.Lexing.lex_curr_p with
                                   Lexing.pos_fname = filename };
     OpamParser.main OpamLexer.token lexbuf filename
@@ -65,6 +65,7 @@ module Syntax = struct
           (OpamMisc.string_of_list (fun x -> x) fields);
       OpamGlobals.exit 5;
     )
+
 end
 
 module X = struct
@@ -77,8 +78,8 @@ module X = struct
 
     let empty = OpamPackage.Name.Map.empty
 
-    let of_string _ s =
-      let lines = Lines.of_string s in
+    let of_channel _ ic =
+      let lines = Lines.of_channel ic in
       List.fold_left (fun map -> function
         | []          -> map
         | [nv;prefix] -> OpamPackage.Name.Map.add (OpamPackage.Name.of_string nv)
@@ -106,8 +107,8 @@ module X = struct
 
     let empty = OpamFilename.Set.empty
 
-    let of_string _ s =
-      let lines = Lines.of_string s in
+    let of_channel _ ic =
+      let lines = Lines.of_channel ic in
       let lines = OpamMisc.filter_map (function
           | []  -> None
           | [f] -> Some (OpamFilename.of_string f)
@@ -133,8 +134,8 @@ module X = struct
 
     let empty = OpamFilename.Attribute.Set.empty
 
-    let of_string _ s =
-      let lines = Lines.of_string s in
+    let of_channel _ ic =
+      let lines = Lines.of_channel ic in
       let rs = OpamMisc.filter_map (function
           | [] -> None
           | l  -> Some (OpamFilename.Attribute.of_string (String.concat " " l))
@@ -155,13 +156,17 @@ module X = struct
     let internal = "url"
 
     type t = {
-      url     : string;
+      url     : address;
       kind    : repository_kind option;
       checksum: string option;
     }
 
+    let create kind url = {
+      url; kind; checksum = None;
+    }
+
     let empty = {
-      url     = "<none>";
+      url     = ("<none>", None);
       kind    = None;
       checksum= None;
     }
@@ -171,56 +176,47 @@ module X = struct
     let s_git = "git"
     let s_darcs = "darcs"
     let s_hg = "hg"
+    let s_local = "local"
 
     let valid_fields = [
       s_archive;
       s_checksum;
       s_git;
       s_darcs;
-      s_hg
+      s_hg;
+      s_local;
     ]
 
-    let of_string filename str =
-      let s = Syntax.of_string filename str in
+    let of_channel filename ic =
+      let s = Syntax.of_channel filename ic in
       Syntax.check s valid_fields;
-      let archive =
-        OpamFormat.assoc_option s.file_contents s_archive OpamFormat.parse_string in
-      let git =
-        OpamFormat.assoc_option s.file_contents s_git OpamFormat.parse_string in
-      let darcs =
-        OpamFormat.assoc_option s.file_contents s_darcs OpamFormat.parse_string in
-      let hg =
-        OpamFormat.assoc_option s.file_contents s_hg OpamFormat.parse_string in
-      let checksum =
-        OpamFormat.assoc_option s.file_contents s_checksum OpamFormat.parse_string in
-      let url, kind = match archive, git, darcs, hg with
-        | None  , None  , None  , None ->
+      let get f = OpamFormat.assoc_option s.file_contents f OpamFormat.parse_string in
+      let archive  = get s_archive in
+      let git      = get s_git in
+      let darcs    = get s_darcs in
+      let hg       = get s_hg in
+      let local    = get s_local in
+      let checksum = get s_checksum in
+      let url, kind = match archive, git, darcs, hg, local with
+        | None  , None  , None  , None, None ->
             OpamGlobals.error_and_exit "Missing URL"
-        | Some x, None  , None  , None   ->
-            x, Some `http
-        | None  , Some x, None  , None   ->
-            x, Some `git
-        | None  , None  , Some x, None   ->
-            x, Some `darcs
-        | None  , None  , None  , Some x ->
-            x, Some `hg
-        | _ ->
-            OpamGlobals.error_and_exit "Too many URLS" in
+        | Some x, None  , None  , None  , None   -> x, Some `http
+        | None  , Some x, None  , None  , None   -> x, Some `git
+        | None  , None  , Some x, None  , None   -> x, Some `darcs
+        | None  , None  , None  , Some x, None   -> x, Some `hg
+        | None  , None  , None  , None  , Some x -> x, Some `local
+        | _ -> OpamGlobals.error_and_exit "Too many URLS" in
+      let url = address_of_string url in
       { url; kind; checksum }
 
     let to_string filename t =
       let url_name = match t.kind with
-        | Some `git   -> "git"
-        | Some `darcs -> "darcs"
-        | Some `hg    -> "hg"
-        | None
-        | Some `http  -> "archive"
-        | Some `local -> OpamGlobals.error_and_exit
-                           "Local packages are not (yet) supported." in
+        | None   -> "archive"
+        | Some k -> string_of_repository_kind k in
       let s = {
         file_name     = OpamFilename.to_string filename;
         file_contents = [
-          Variable (url_name , OpamFormat.make_string t.url);
+          Variable (url_name , OpamFormat.make_string (string_of_address t.url));
         ] @ match t.checksum with
             | None   -> []
             | Some c -> [Variable (s_checksum, OpamFormat.make_string c)]
@@ -243,8 +239,8 @@ module X = struct
 
     let empty = (OpamPackage.Set.empty, OpamPackage.Set.empty)
 
-    let of_string _ s =
-      let lines = Lines.of_string s in
+    let of_channel _ ic =
+      let lines = Lines.of_channel ic in
       let installed = ref OpamPackage.Set.empty in
       let roots = ref OpamPackage.Set.empty in
       let add n v r =
@@ -293,8 +289,8 @@ module X = struct
             (OpamPackage.Name.to_string n) (OpamPackage.Version.Set.to_string vs)
       ) map
 
-    let of_string _ s =
-      let lines = Lines.of_string s in
+    let of_channel _ ic =
+      let lines = Lines.of_channel ic in
       let map = ref empty in
       let add n v = map := OpamPackage.Set.add (OpamPackage.create n v) !map in
       List.iter (function
@@ -342,8 +338,8 @@ module X = struct
 
     let empty = OpamPackage.Name.Map.empty
 
-    let of_string _ str =
-      let lines = Lines.of_string str in
+    let of_channel _ ic =
+      let lines = Lines.of_channel ic in
       List.fold_left (fun map -> function
         | name_s :: repo_s ->
           let name = OpamPackage.Name.of_string name_s in
@@ -372,8 +368,8 @@ module X = struct
 
     let empty = None
 
-    let of_string _ str =
-      let lines = Lines.of_string str in
+    let of_channel _ ic =
+      let lines = Lines.of_channel ic in
       let checksum = ref None in
       let map = List.fold_left (fun map -> function
         | [c] when !checksum = None ->
@@ -423,8 +419,8 @@ module X = struct
 
     let empty = OpamCompiler.Map.empty
 
-    let of_string _ str =
-      let lines = Lines.of_string str in
+    let of_channel _ ic =
+      let lines = Lines.of_channel ic in
       List.fold_left (fun map -> function
         | [c; r] ->
           let c = OpamCompiler.of_string c in
@@ -454,8 +450,8 @@ module X = struct
 
     let empty = OpamPackage.Name.Map.empty
 
-    let of_string _ str =
-      let lines = Lines.of_string str in
+    let of_channel _ ic =
+      let lines = Lines.of_channel ic in
       let add name_s pin map =
         let name = OpamPackage.Name.of_string name_s in
         if OpamPackage.Name.Map.mem name map then
@@ -473,12 +469,15 @@ module X = struct
 
     let to_string _ map =
       let lines = OpamPackage.Name.Map.fold (fun name pin lines ->
-          let l = [
-            OpamPackage.Name.to_string name;
-            string_of_pin_kind (kind_of_pin_option pin);
-            path_of_pin_option pin
-          ] in
-          l :: lines
+          match kind_of_pin_option pin with
+          | None      -> lines
+          | Some kind ->
+            let l = [
+              OpamPackage.Name.to_string name;
+              string_of_pin_kind kind;
+              string_of_pin_option pin
+            ] in
+            l :: lines
         ) map [] in
       Lines.to_string (List.rev lines)
 
@@ -492,7 +491,7 @@ module X = struct
 
     let empty = {
       repo_name     = OpamRepositoryName.of_string "<none>";
-      repo_address  = OpamFilename.raw_dir "<none>";
+      repo_address  = ("<none>", None);
       repo_root     = OpamFilename.raw_dir "<none>";
       repo_kind     = `local;
       repo_priority = 0;
@@ -502,21 +501,26 @@ module X = struct
     let s_kind = "kind"
     let s_address = "address"
     let s_priority = "priority"
+    let s_root = "root"
 
-    let of_string filename str =
-      let s = Syntax.of_string filename str in
+    let of_channel filename ic =
+      let s = Syntax.of_channel filename ic in
       let repo_name =
         OpamFormat.assoc s.file_contents s_name
           (OpamFormat.parse_string |> OpamRepositoryName.of_string) in
       let repo_address =
         OpamFormat.assoc s.file_contents s_address
-          (OpamFormat.parse_string |> OpamFilename.address_of_string) in
+          (OpamFormat.parse_string |> address_of_string) in
       let repo_kind =
         OpamFormat.assoc s.file_contents s_kind
           (OpamFormat.parse_string |> repository_kind_of_string) in
       let repo_priority =
         OpamFormat.assoc_default 0 s.file_contents s_priority OpamFormat.parse_int in
-      let repo_root = OpamPath.Repository.create repo_name in
+      let repo_root =
+        match OpamFormat.assoc_option s.file_contents s_root
+                (OpamFormat.parse_string |> OpamFilename.raw_dir)
+        with None   -> OpamPath.Repository.create (OpamPath.root ()) repo_name
+           | Some f -> f in
       { repo_name; repo_address; repo_kind; repo_priority; repo_root }
 
     let to_string filename t =
@@ -526,11 +530,13 @@ module X = struct
           Variable (s_name    ,
                     OpamFormat.make_string (OpamRepositoryName.to_string t.repo_name));
           Variable (s_address ,
-                    OpamFormat.make_string (OpamFilename.Dir.to_string t.repo_address));
+                    OpamFormat.make_string (string_of_address t.repo_address));
           Variable (s_kind    ,
                     OpamFormat.make_string (string_of_repository_kind t.repo_kind));
           Variable (s_priority,
                     OpamFormat.make_int t.repo_priority);
+          Variable (s_root,
+                    OpamFormat.make_string (OpamFilename.Dir.to_string t.repo_root));
         ] } in
       Syntax.to_string s
 
@@ -540,20 +546,32 @@ module X = struct
 
     let internal = "descr"
 
-    type t = string
+    type t = string * string Lazy.t
 
-    let empty = ""
+    let empty = "", lazy ""
 
-    let synopsis str =
-      match OpamMisc.cut_at str '\n' with
-      | None       -> str
-      | Some (s,_) -> s
+    let synopsis = fst
 
-    let full str = str
+    let full (x,y) = x ^ "\n" ^ (Lazy.force y)
 
-    let of_string _ x = x
+    let of_channel _ ic =
+      let x =
+        try input_line ic
+        with _ -> "" in
+      let y = lazy (
+        try OpamSystem.string_of_channel ic
+        with _ -> ""
+      ) in
+      x, y
 
-    let to_string _ x = x
+    let of_string str =
+      let head, tail =
+        match OpamMisc.cut_at str '\n' with
+        | None       -> str, ""
+        | Some (h,t) -> h, t in
+      head, lazy tail
+
+    let to_string _ = full
 
   end
 
@@ -574,8 +592,8 @@ module X = struct
         ) t [] in
       Lines.to_string l
 
-    let of_string _ s =
-      let l = Lines.of_string s in
+    let of_channel _ ic =
+      let l = Lines.of_channel ic in
       List.fold_left (fun map -> function
         | []            -> map
         | [switch; comp] -> OpamSwitch.Map.add (OpamSwitch.of_string switch)
@@ -642,8 +660,8 @@ module X = struct
       s_cores;
     ]
 
-    let of_string filename f =
-      let s = Syntax.of_string filename f in
+    let of_channel filename ic =
+      let s = Syntax.of_channel filename ic in
       Syntax.check s valid_fields;
       let opam_version =
         OpamFormat.assoc s.file_contents s_opam_version
@@ -712,6 +730,7 @@ module X = struct
       others     : (string * value) list;
       ocaml_version: compiler_constraint option;
       os         : (bool * string) generic_formula;
+      available  : filter;
       homepage   : string option;
       authors    : string list;
       license    : string option;
@@ -721,6 +740,7 @@ module X = struct
       build_doc  : command list;
       depexts    : tags option;
       messages   : (string * filter option) list;
+      post_messages: (string * filter option) list;
     }
 
     let empty = {
@@ -740,6 +760,7 @@ module X = struct
       others     = [];
       ocaml_version = None;
       os         = Empty;
+      available  = FBool true;
       homepage   = None;
       authors    = [];
       license    = None;
@@ -749,6 +770,7 @@ module X = struct
       build_doc  = [];
       depexts    = None;
       messages   = [];
+      post_messages = [];
     }
 
     let create nv =
@@ -772,6 +794,7 @@ module X = struct
     let s_patches     = "patches"
     let s_configure_style = "configure-style"
     let s_os          = "os"
+    let s_available   = "available"
     let s_homepage    = "homepage"
     let s_authors     = "authors"
     let s_license     = "license"
@@ -781,6 +804,7 @@ module X = struct
     let s_build_doc   = "build-doc"
     let s_depexts     = "depexts"
     let s_messages    = "messages"
+    let s_post_messages = "post-messages"
 
     let useful_fields = [
       s_opam_version;
@@ -797,6 +821,7 @@ module X = struct
       s_build_env;
       s_patches;
       s_os;
+      s_available;
       s_license;
       s_authors;
       s_homepage;
@@ -805,6 +830,7 @@ module X = struct
       s_build_doc;
       s_depexts;
       s_messages;
+      s_post_messages;
       s_tags;
     ]
 
@@ -830,6 +856,7 @@ module X = struct
     let build_env t = t.build_env
     let patches t = t.patches
     let os t = t.os
+    let available t = t.available
     let homepage t = t.homepage
     let authors t = t.authors
     let license t = t.license
@@ -839,6 +866,7 @@ module X = struct
     let build_test t = t.build_test
     let depexts t = t.depexts
     let messages t = t.messages
+    let post_messages t = t.post_messages
 
     let with_depends t depends = { t with depends }
     let with_depopts t depopts = { t with depopts }
@@ -854,6 +882,13 @@ module X = struct
       let make_file =
         OpamFormat.make_option (OpamFilename.Base.to_string |> OpamFormat.make_string)
           OpamFormat.make_filter in
+      let name_and_version = match OpamPackage.of_filename filename with
+        | None  ->
+          let name n = OpamFormat.make_string (OpamPackage.Name.to_string n) in
+          let version v = OpamFormat.make_string (OpamPackage.Version.to_string v) in
+          [ Variable (s_name, name t.name);
+            Variable (s_version, version t.version) ]
+        | _     -> [] in
       let option c s f = match c with
         | None   -> []
         | Some v -> [ Variable (s, f v) ] in
@@ -866,14 +901,17 @@ module X = struct
       let formula c s f = match c with
         | Empty -> []
         | x     -> [ Variable (s, f x) ] in
+      let filter c s f = match c with
+        | FBool true -> []
+        | x     -> [ Variable (s, f x) ] in
       let s = {
         file_name     = OpamFilename.to_string filename;
         file_contents = [
           Variable (s_opam_version, OpamFormat.make_string OpamGlobals.opam_version);
           Variable (s_maintainer  , OpamFormat.make_string t.maintainer);
-        ] @ option  t.homepage      s_homepage      OpamFormat.make_string
-          @ list    t.authors       s_authors
-              (String.concat ", " |> OpamFormat.make_string)
+        ] @ name_and_version
+          @ option  t.homepage      s_homepage      OpamFormat.make_string
+          @ list    t.authors       s_authors       OpamFormat.make_string_list
           @ option  t.license       s_license       OpamFormat.make_string
           @ option  t.doc           s_doc           OpamFormat.make_string
           @ list    t.tags          s_tags          OpamFormat.make_string_list
@@ -892,9 +930,15 @@ module X = struct
           @ list    t.patches       s_patches       (OpamFormat.make_list make_file)
           @ option  t.ocaml_version s_ocaml_version OpamFormat.make_compiler_constraint
           @ formula t.os            s_os            OpamFormat.make_os_constraint
+          @ filter  t.available     s_available
+              (fun f -> List (OpamFormat.make_filter f))
           @ listm   t.build_test    s_build_test    OpamFormat.make_command
           @ listm   t.build_doc     s_build_doc     OpamFormat.make_command
           @ option  t.depexts       s_depexts       OpamFormat.make_tags
+          @ list    t.messages      s_messages
+              OpamFormat.(make_list (make_option make_string make_filter))
+          @ list    t.post_messages s_post_messages
+              OpamFormat.(make_list (make_option make_string make_filter))
           @ List.rev (List.rev_map (fun (s, v) -> Variable (s, v)) t.others);
       } in
       Syntax.to_string
@@ -902,9 +946,9 @@ module X = struct
           (fun s -> List.mem s [s_build ; s_remove ; s_depends ; s_depopts])
         s
 
-    let of_string filename str =
-      let nv = OpamPackage.of_filename ~all:true filename in
-      let s = Syntax.of_string filename str in
+    let of_channel filename ic =
+      let nv = OpamPackage.of_filename filename in
+      let s = Syntax.of_channel filename ic in
       Syntax.check s valid_fields;
       let s = s.file_contents in
       let opam_version = OpamFormat.assoc s s_opam_version OpamFormat.parse_string in
@@ -965,6 +1009,9 @@ module X = struct
           OpamFormat.parse_compiler_constraint in
       let os = OpamFormat.assoc_default OpamFormula.Empty s s_os
           OpamFormat.parse_os_constraint in
+      let available = OpamFormat.assoc_default (FBool true) s s_available
+          (function List l -> OpamFormat.parse_filter l
+                  | _ -> raise (OpamFormat.Bad_format "available: expecting a list")) in
       let parse_file = OpamFormat.parse_option
           (OpamFormat.parse_string |> OpamFilename.Base.of_string)
           OpamFormat.parse_filter in
@@ -979,6 +1026,7 @@ module X = struct
       let build_doc = OpamFormat.assoc_list s s_build_doc OpamFormat.parse_commands in
       let depexts = OpamFormat.assoc_option s s_depexts OpamFormat.parse_tags in
       let messages = OpamFormat.assoc_list s s_messages OpamFormat.parse_messages in
+      let post_messages = OpamFormat.assoc_list s s_post_messages OpamFormat.parse_messages in
       let others     =
         OpamMisc.filter_map (function
           | Variable (x,v) -> if List.mem x useful_fields then None else Some (x,v)
@@ -986,9 +1034,9 @@ module X = struct
         ) s in
       { name; version; maintainer; substs; build; remove;
         depends; depopts; conflicts; libraries; syntax; others;
-        patches; ocaml_version; os; build_env;
+        patches; ocaml_version; os; available; build_env;
         homepage; authors; license; doc; tags;
-        build_test; build_doc; depexts; messages
+        build_test; build_doc; depexts; messages; post_messages
       }
   end
 
@@ -1093,13 +1141,14 @@ module X = struct
           Variable (s_stublibs, mk      t.stublibs);
           Variable (s_share   , mk      t.share);
           Variable (s_doc     , mk      t.doc);
+          Variable (s_man     , mk      t.man);
           Variable (s_misc    , mk_misc t.misc);
         ]
       } in
       Syntax.to_string ~indent_variable:(fun _ -> true) s
 
-    let of_string filename str =
-      let s = Syntax.of_string filename str in
+    let of_channel filename ic =
+      let s = Syntax.of_channel filename ic in
       Syntax.check s valid_fields;
       let src = OpamFormat.parse_string |> optional_of_string in
       let mk field =
@@ -1111,7 +1160,7 @@ module X = struct
           if not (Filename.is_relative s) then
             OpamFilename.of_string s
           else
-            OpamSystem.internal_error "%s is not an absolute filename." str in
+            OpamSystem.internal_error "%s is not an absolute filename." s in
         let dst = OpamFormat.parse_string |> absolute_filename in
         let fn = OpamFormat.parse_pair src dst in
         OpamFormat.assoc_list s.file_contents s_misc (OpamFormat.parse_list fn) in
@@ -1172,8 +1221,8 @@ module X = struct
       s_requires;
     ]
 
-    let of_string filename str =
-      let file = Syntax.of_string filename str in
+    let of_channel filename ic =
+      let file = Syntax.of_channel filename ic in
       let parse_value = OpamFormat.parse_or [
           "string", (OpamFormat.parse_string |> s);
           "bool"  , (OpamFormat.parse_bool   |> b);
@@ -1383,8 +1432,8 @@ module X = struct
     let env t = t.env
     let tags t = t.tags
 
-    let of_string filename str =
-      let file = Syntax.of_string filename str in
+    let of_channel filename ic =
+      let file = Syntax.of_channel filename ic in
       Syntax.check file valid_fields;
       let s = file.file_contents in
       let parse_camlp4 = function
@@ -1402,12 +1451,7 @@ module X = struct
         | None   -> OpamSystem.internal_error
                       "%s is not a valid compiler description file."
                       (OpamFilename.to_string filename)
-        | Some c ->
-          let base = OpamCompiler.to_string c in
-          OpamCompiler.of_string base,
-          match OpamMisc.cut_at base '+' with
-          | None       -> OpamCompiler.Version.of_string base
-          | Some (n,_) -> OpamCompiler.Version.of_string n in
+        | Some c -> c, OpamCompiler.version c in
       let name =
         OpamFormat.assoc_default name_d s s_name
           (OpamFormat.parse_string |> OpamCompiler.of_string) in
@@ -1522,7 +1566,8 @@ module X = struct
 
     let empty = ""
 
-    let of_string _ x = x
+    let of_channel _ ic =
+      OpamSystem.string_of_channel ic
 
     let to_string _ x = x
 
@@ -1536,7 +1581,8 @@ module X = struct
 
     let empty = ""
 
-    let of_string _ str = str
+    let of_channel _ ic =
+      OpamSystem.string_of_channel ic
 
     let to_string _ t = t
 
@@ -1558,7 +1604,7 @@ module type F = sig
   val internal : string
   type t
   val empty : t
-  val of_string : filename -> string -> t
+  val of_channel : filename -> in_channel  -> t
   val to_string : filename -> t -> string
 end
 
@@ -1612,7 +1658,11 @@ module Make (F : F) = struct
     log "read %s" filename;
     with_time reads F.internal (fun () ->
       if OpamFilename.exists f then
-        try F.of_string f (OpamFilename.read f)
+        try
+          let ic = OpamFilename.open_in f in
+          let r = F.of_channel f ic in
+          close_in ic;
+          r
         with OpamFormat.Bad_format msg ->
           OpamSystem.internal_error "File %s: %s" (OpamFilename.to_string f) msg
       else
@@ -1630,7 +1680,7 @@ module Make (F : F) = struct
   let dummy_file = OpamFilename.raw "<dummy>"
 
   let read_from_channel ic =
-    try F.of_string dummy_file (OpamSystem.string_of_channel ic)
+    try F.of_channel dummy_file ic
     with OpamFormat.Bad_format msg ->
       OpamSystem.internal_error "%s" msg
 

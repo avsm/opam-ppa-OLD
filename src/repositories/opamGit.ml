@@ -21,46 +21,38 @@ let log fmt = OpamGlobals.log "GIT" fmt
 
 module Git = struct
 
-  type address = {
-    address: dirname;
-    commit : string option;
-  }
-
-  (* A git address could be of the form: git://path/to/the/repository/#SHA *)
-  let address repo =
-    let address = OpamFilename.Dir.to_string repo.repo_address in
-    let address, commit = OpamMisc.git_of_string address in
-    { address = OpamFilename.raw_dir address; commit }
-
   let exists repo =
     OpamFilename.exists_dir (repo.repo_root / ".git")
 
   let init repo =
-    let address = address repo in
-    let repo = OpamFilename.Dir.to_string address.address in
-    OpamSystem.commands [
-      [ "git" ; "init" ] ;
-      [ "git" ; "remote" ; "add" ; "origin" ; repo ] ;
-    ]
-
-  let fetch repo =
-    let address = address repo in
-    OpamGlobals.msg "%-10s Fetching %s%s\n"
-      (OpamRepositoryName.to_string repo.repo_name)
-      (OpamFilename.prettify_dir address.address)
-      (match address.commit with
-      | None   -> ""
-      | Some c -> Printf.sprintf " [%s]" c);
     OpamFilename.in_dir repo.repo_root (fun () ->
-      OpamSystem.command [ "git" ; "fetch" ; "origin" ]
+      OpamSystem.commands [
+        [ "git" ; "init" ] ;
+        [ "git" ; "remote" ; "add" ; "origin" ; fst repo.repo_address ] ;
+      ]
     )
 
-  let merge repo =
-    let address = address repo in
+  let fetch repo =
+    OpamFilename.in_dir repo.repo_root (fun () ->
+        OpamSystem.command [ "git" ; "fetch" ; "origin" ]
+      )
+
+  let revision repo =
+    OpamFilename.in_dir repo.repo_root (fun () ->
+        match OpamSystem.read_command_output [ "git" ; "rev-parse" ; "HEAD" ] with
+        | []      -> "<none>"
+        | full::_ ->
+          if String.length full > 8 then
+            String.sub full 0 8
+          else
+            full
+      )
+
+  let reset repo =
     let merge commit =
-      try OpamSystem.command [ "git" ; "merge" ; commit ]; true
+      try OpamSystem.command [ "git" ; "reset" ; "--hard"; commit ]; true
       with _ -> false in
-    let commit = match address.commit with
+    let commit = match snd repo.repo_address with
       | None   -> "origin/master"
       | Some c -> c in
     OpamFilename.in_dir repo.repo_root (fun () ->
@@ -70,12 +62,11 @@ module Git = struct
     )
 
   let diff repo =
-    let address = address repo in
     let diff commit =
       try Some (
         OpamSystem.read_command_output ["git" ; "diff" ; commit ; "--name-only"])
       with _ -> None in
-    let commit = match address.commit with
+    let commit = match snd repo.repo_address with
       | None   -> "origin/master"
       | Some c -> c in
     OpamFilename.in_dir repo.repo_root (fun () ->

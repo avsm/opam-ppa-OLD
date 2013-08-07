@@ -1,0 +1,292 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+<link rel="stylesheet" href="style.css" type="text/css">
+<meta content="text/html; charset=utf-8" http-equiv="Content-Type">
+<link rel="Start" href="index.html">
+<link rel="previous" href="Cmdliner.Term.html">
+<link rel="Up" href="Cmdliner.html">
+<link title="Index of types" rel=Appendix href="index_types.html">
+<link title="Index of values" rel=Appendix href="index_values.html">
+<link title="Index of modules" rel=Appendix href="index_modules.html">
+<link title="Cmdliner" rel="Chapter" href="Cmdliner.html"><link title="Argument converters" rel="Section" href="#argconv">
+<link title="Arguments and their information" rel="Section" href="#arginfo">
+<link title="Optional arguments" rel="Section" href="#optargs">
+<link title="Positional arguments" rel="Section" href="#posargs">
+<link title="Arguments as terms" rel="Section" href="#argterms">
+<link title="Predefined converters" rel="Section" href="#converters">
+<title>Cmdliner.Arg</title>
+</head>
+<body>
+<div class="navbar"><a class="pre" href="Cmdliner.Term.html" title="Cmdliner.Term">Previous</a>
+&nbsp;<a class="up" href="Cmdliner.html" title="Cmdliner">Up</a>
+&nbsp;</div>
+<h1>Module <a href="type_Cmdliner.Arg.html">Cmdliner.Arg</a></h1>
+<pre><span class="keyword">module</span> Arg: <code class="code"><span class="keyword">sig</span></code> <a href="Cmdliner.Arg.html">..</a> <code class="code"><span class="keyword">end</span></code></pre><div class="info">
+Terms for command line arguments.
+<p>
+
+    This module provides functions to define terms that evaluate 
+    to the arguments provided on the command line. 
+<p>
+
+    Basic constraints, like the argument type or repeatability, are
+    specified by defining a value of type <a href="Cmdliner.Arg.html#TYPEt"><code class="code"><span class="constructor">Cmdliner</span>.<span class="constructor">Arg</span>.t</code></a>. Further contraints can
+    be specified during the <a href="Cmdliner.Arg.html#argterms">conversion</a> to a term.<br>
+</div>
+<hr width="100%">
+<br>
+<h1 id="argconv">Argument converters</h1>  
+<p>
+
+    An argument converter transforms a string argument of the command
+    line to an OCaml value. <a href="Cmdliner.Arg.html#converters">Predefined converters</a>
+    are provided for many types of the standard library.<br>
+<pre><span id="TYPEparser"><span class="keyword">type</span> <code class="type">'a</code> parser</span> = <code class="type">string -> [ `Error of string | `Ok of 'a ]</code> </pre>
+<div class="info">
+The type for argument parsers.<br>
+</div>
+
+<pre><span id="TYPEprinter"><span class="keyword">type</span> <code class="type">'a</code> printer</span> = <code class="type">Format.formatter -> 'a -> unit</code> </pre>
+<div class="info">
+The type for converted argument printers.<br>
+</div>
+
+<pre><span id="TYPEconverter"><span class="keyword">type</span> <code class="type">'a</code> converter</span> = <code class="type">'a <a href="Cmdliner.Arg.html#TYPEparser">parser</a> * 'a <a href="Cmdliner.Arg.html#TYPEprinter">printer</a></code> </pre>
+<div class="info">
+The type for argument converters.<br>
+</div>
+
+<pre><span id="VALsome"><span class="keyword">val</span> some</span> : <code class="type">?none:string -> 'a <a href="Cmdliner.Arg.html#TYPEconverter">converter</a> -> 'a option <a href="Cmdliner.Arg.html#TYPEconverter">converter</a></code></pre><div class="info">
+<code class="code">some none c</code> is like the converter <code class="code">c</code> except it returns
+      <code class="code"><span class="constructor">Some</span></code> value. It is used for command line arguments 
+      that default to <code class="code"><span class="constructor">None</span></code> when absent. <code class="code">none</code> is what to print to
+      document the absence (defaults to <code class="code"><span class="string">""</span></code>).<br>
+</div>
+<br>
+<h1 id="arginfo">Arguments and their information</h1> 
+<p>
+
+    Argument information defines the man page information of an argument and, 
+    for optional arguments, its names.<br>
+<pre><span id="TYPEt"><span class="keyword">type</span> <code class="type">'a</code> t</span> </pre>
+<div class="info">
+The type for arguments holding data of type <code class="code"><span class="keywordsign">'</span>a</code>.<br>
+</div>
+
+<pre><span id="TYPEinfo"><span class="keyword">type</span> <code class="type"></code>info</span> </pre>
+<div class="info">
+The type for information about command line arguments.<br>
+</div>
+
+<pre><span id="VALinfo"><span class="keyword">val</span> info</span> : <code class="type">?docs:string -><br>       ?docv:string -> ?doc:string -> string list -> <a href="Cmdliner.Arg.html#TYPEinfo">info</a></code></pre><div class="info">
+<code class="code">info docs docv doc names</code> defines information for 
+      an argument. 
+<p>
+
+      <code class="code">names</code> defines the names under which an optional argument
+      can be referred to. Strings of length <code class="code">1</code> (<code class="code"><span class="string">"c"</span></code>) define short 
+      option names (<code class="code"><span class="string">"-c"</span></code>), longer strings (<code class="code"><span class="string">"count"</span></code>) define long
+      option names (<code class="code"><span class="string">"--count"</span></code>). <code class="code">names</code> must be empty for positional 
+      arguments. 
+<p>
+
+      <ul>
+<li><code class="code">doc</code> is the man page information of the argument.
+         The variable <code class="code"><span class="string">"$(docv)"</span></code> can be used to refer to the value 
+         of <code class="code">docv</code> (see below).</li>
+<li><code class="code">docv</code> is for positional and non-flag optional arguments.
+	 It is a variable name used in the man page to stand for their value.</li>
+<li><code class="code">docs</code> is the title of the man page section in which the argument 
+         will be listed. For optional arguments this defaults
+         to <code class="code"><span class="string">"OPTIONS"</span></code>. For positional arguments this defaults
+         to <code class="code"><span class="string">"ARGUMENTS"</span></code>. However a positional argument is only listed
+         if it has both a <code class="code">doc</code> and <code class="code">docv</code> specified.</li>
+</ul>
+<br>
+</div>
+<pre><span id="VAL(&)"><span class="keyword">val</span> (&amp;)</span> : <code class="type">('a -> 'b) -> 'a -> 'b</code></pre><div class="info">
+<code class="code">f <span class="keywordsign">&amp;</span> v</code> is <code class="code">f v</code>, a right associative composition operator for
+      specifying argument terms.<br>
+</div>
+<br>
+<h1 id="optargs">Optional arguments</h1> 
+<p>
+
+    The information of an optional argument must have at least
+    one name or <code class="code"><span class="constructor">Invalid_argument</span></code> is raised.<br>
+<pre><span id="VALflag"><span class="keyword">val</span> flag</span> : <code class="type"><a href="Cmdliner.Arg.html#TYPEinfo">info</a> -> bool <a href="Cmdliner.Arg.html#TYPEt">t</a></code></pre><div class="info">
+<code class="code">flag i</code> is a <code class="code">bool</code> argument defined by an optional flag 
+      that may appear <em>at most</em> once on the command line under one of 
+      the names specified by <code class="code">i</code>. The argument holds <code class="code"><span class="keyword">true</span></code> if the 
+      flag is present on the command line and <code class="code"><span class="keyword">false</span></code> otherwise.<br>
+</div>
+<pre><span id="VALflag_all"><span class="keyword">val</span> flag_all</span> : <code class="type"><a href="Cmdliner.Arg.html#TYPEinfo">info</a> -> bool list <a href="Cmdliner.Arg.html#TYPEt">t</a></code></pre><div class="info">
+<code class="code">flag_all</code> is like <a href="Cmdliner.Arg.html#VALflag"><code class="code"><span class="constructor">Cmdliner</span>.<span class="constructor">Arg</span>.flag</code></a> except the flag may appear more than
+      once. The argument holds a list that contains one <code class="code"><span class="keyword">true</span></code> value per 
+      occurence of the flag. It holds the empty list if the flag
+      is absent from the command line.<br>
+</div>
+<pre><span id="VALvflag"><span class="keyword">val</span> vflag</span> : <code class="type">'a -> ('a * <a href="Cmdliner.Arg.html#TYPEinfo">info</a>) list -> 'a <a href="Cmdliner.Arg.html#TYPEt">t</a></code></pre><div class="info">
+<code class="code">vflag v [v</code><sub class="subscript">0</sub><code class="code">,i</code><sub class="subscript">0</sub><code class="code">;...]</code> is an <code class="code"><span class="keywordsign">'</span>a</code> argument defined 
+      by an optional flag that may appear <em>at most</em> once on 
+      the command line under one of the names specified in the <code class="code">i</code><sub class="subscript">k</sub>
+      values. The argument holds <code class="code">v</code> if the flag is absent from the 
+      command line and the value <code class="code">v</code><sub class="subscript">k</sub> if the name under which it appears 
+      is in <code class="code">i</code><sub class="subscript">k</sub>.<br>
+</div>
+<pre><span id="VALvflag_all"><span class="keyword">val</span> vflag_all</span> : <code class="type">'a list -> ('a * <a href="Cmdliner.Arg.html#TYPEinfo">info</a>) list -> 'a list <a href="Cmdliner.Arg.html#TYPEt">t</a></code></pre><div class="info">
+<code class="code">vflag_all v l</code> is like <a href="Cmdliner.Arg.html#VALvflag"><code class="code"><span class="constructor">Cmdliner</span>.<span class="constructor">Arg</span>.vflag</code></a> except the flag may appear more
+      than once. The argument holds the list <code class="code">v</code> if the flag is absent
+      from the command line. Otherwise it holds a list that contains one 
+      corresponding value per occurence of the flag, in the order found on 
+      the command line.<br>
+</div>
+<pre><span id="VALopt"><span class="keyword">val</span> opt</span> : <code class="type">?vopt:'a -><br>       'a <a href="Cmdliner.Arg.html#TYPEconverter">converter</a> -> 'a -> <a href="Cmdliner.Arg.html#TYPEinfo">info</a> -> 'a <a href="Cmdliner.Arg.html#TYPEt">t</a></code></pre><div class="info">
+<code class="code">opt vopt c v i</code> is an <code class="code"><span class="keywordsign">'</span>a</code> argument defined by the value of 
+      an optional argument that may appear <em>at most</em> once on the command
+      line under one of the names specified by <code class="code">i</code>. The argument holds
+      <code class="code">v</code> if the option is absent from the command line. Otherwise
+      it has the value of the option as converted by <code class="code">c</code>. 
+<p>
+
+      If <code class="code">vopt</code> is provided the value of the optional argument is itself
+      optional, taking the value <code class="code">vopt</code> if unspecified on the command line.<br>
+</div>
+<pre><span id="VALopt_all"><span class="keyword">val</span> opt_all</span> : <code class="type">?vopt:'a -><br>       'a <a href="Cmdliner.Arg.html#TYPEconverter">converter</a> -><br>       'a list -> <a href="Cmdliner.Arg.html#TYPEinfo">info</a> -> 'a list <a href="Cmdliner.Arg.html#TYPEt">t</a></code></pre><div class="info">
+<code class="code">opt_all vopt c v i</code> is like <a href="Cmdliner.Arg.html#VALopt"><code class="code"><span class="constructor">Cmdliner</span>.<span class="constructor">Arg</span>.opt</code></a> except the optional argument may 
+      appear more than once. The argument holds a list that contains one value
+      per occurence of the flag in the order found on the command line. 
+      It holds the list <code class="code">v</code> if the flag is absent from the command line.<br>
+</div>
+<br>
+<h1 id="posargs">Positional arguments</h1> 
+<p>
+
+      The information of a positional argument must have no name
+      or <code class="code"><span class="constructor">Invalid_argument</span></code> is raised. Positional arguments indexing
+      is zero-based.<br>
+<pre><span id="VALpos"><span class="keyword">val</span> pos</span> : <code class="type">?rev:bool -><br>       int -><br>       'a <a href="Cmdliner.Arg.html#TYPEconverter">converter</a> -> 'a -> <a href="Cmdliner.Arg.html#TYPEinfo">info</a> -> 'a <a href="Cmdliner.Arg.html#TYPEt">t</a></code></pre><div class="info">
+<code class="code">pos rev n c v i</code> is an <code class="code"><span class="keywordsign">'</span>a</code> argument defined by the <code class="code">n</code>th
+      positional argument of the command line as converted by <code class="code">c</code>.
+      If the positional argument is absent from the command line 
+      the argument is <code class="code">v</code>.
+<p>
+
+      If <code class="code">rev</code> is <code class="code"><span class="keyword">true</span></code> (defaults to <code class="code"><span class="keyword">false</span></code>), the computed
+      position is <code class="code">max-n</code> where <code class="code">max</code> is the position of 
+      the last positional argument present on the command line.<br>
+</div>
+<pre><span id="VALpos_all"><span class="keyword">val</span> pos_all</span> : <code class="type">'a <a href="Cmdliner.Arg.html#TYPEconverter">converter</a> -><br>       'a list -> <a href="Cmdliner.Arg.html#TYPEinfo">info</a> -> 'a list <a href="Cmdliner.Arg.html#TYPEt">t</a></code></pre><div class="info">
+<code class="code">pos_all c v i</code> is an <code class="code"><span class="keywordsign">'</span>a list</code> argument that holds 
+      all the positional arguments of the command line as converted
+      by <code class="code">c</code> or <code class="code">v</code> if there are none.<br>
+</div>
+<pre><span id="VALpos_left"><span class="keyword">val</span> pos_left</span> : <code class="type">?rev:bool -><br>       int -><br>       'a <a href="Cmdliner.Arg.html#TYPEconverter">converter</a> -><br>       'a list -> <a href="Cmdliner.Arg.html#TYPEinfo">info</a> -> 'a list <a href="Cmdliner.Arg.html#TYPEt">t</a></code></pre><div class="info">
+<code class="code">pos_left rev n c v i</code> is an <code class="code"><span class="keywordsign">'</span>a list</code> argument that holds
+      all the positional arguments as converted by <code class="code">c</code> found on the left
+      of the <code class="code">n</code>th positional argument or <code class="code">v</code> if there are none.
+<p>
+
+      If <code class="code">rev</code> is <code class="code"><span class="keyword">true</span></code> (defaults to <code class="code"><span class="keyword">false</span></code>), the computed
+      position is <code class="code">max-n</code> where <code class="code">max</code> is the position of 
+      the last positional argument present on the command line.<br>
+</div>
+<pre><span id="VALpos_right"><span class="keyword">val</span> pos_right</span> : <code class="type">?rev:bool -><br>       int -><br>       'a <a href="Cmdliner.Arg.html#TYPEconverter">converter</a> -><br>       'a list -> <a href="Cmdliner.Arg.html#TYPEinfo">info</a> -> 'a list <a href="Cmdliner.Arg.html#TYPEt">t</a></code></pre><div class="info">
+<code class="code">pos_right</code> is like <a href="Cmdliner.Arg.html#VALpos_left"><code class="code"><span class="constructor">Cmdliner</span>.<span class="constructor">Arg</span>.pos_left</code></a> except it holds all the positional
+      arguments found on the right of the specified positional argument.<br>
+</div>
+<br>
+<h1 id="argterms">Arguments as terms</h1><br>
+<pre><span id="VALvalue"><span class="keyword">val</span> value</span> : <code class="type">'a <a href="Cmdliner.Arg.html#TYPEt">t</a> -> 'a <a href="Cmdliner.Term.html#TYPEt">Cmdliner.Term.t</a></code></pre><div class="info">
+<code class="code">value a</code> is a term that evaluates to <code class="code">a</code>'s value.<br>
+</div>
+<pre><span id="VALrequired"><span class="keyword">val</span> required</span> : <code class="type">'a option <a href="Cmdliner.Arg.html#TYPEt">t</a> -> 'a <a href="Cmdliner.Term.html#TYPEt">Cmdliner.Term.t</a></code></pre><div class="info">
+<code class="code">required a</code> is a term that fails if <code class="code">a</code>'s value is <code class="code"><span class="constructor">None</span></code> and
+      evaluates to the value of <code class="code"><span class="constructor">Some</span></code> otherwise. Use this for required 
+      positional arguments (it can also be used for defining required 
+      optional arguments, but from a user interface perspective this 
+      shouldn't be done, it is a contradiction in terms).<br>
+</div>
+<pre><span id="VALnon_empty"><span class="keyword">val</span> non_empty</span> : <code class="type">'a list <a href="Cmdliner.Arg.html#TYPEt">t</a> -> 'a list <a href="Cmdliner.Term.html#TYPEt">Cmdliner.Term.t</a></code></pre><div class="info">
+<code class="code">non_empty a</code> is term that fails if <code class="code">a</code>'s list is empty and 
+      evaluates to <code class="code">a</code>'s list otherwise. Use this for non empty lists
+      of positional arguments.<br>
+</div>
+<pre><span id="VALlast"><span class="keyword">val</span> last</span> : <code class="type">'a list <a href="Cmdliner.Arg.html#TYPEt">t</a> -> 'a <a href="Cmdliner.Term.html#TYPEt">Cmdliner.Term.t</a></code></pre><div class="info">
+<code class="code">last a</code> is a term that fails if <code class="code">a</code>'s list is empty and evaluates
+      to the value of the last element of the list otherwise. Use this
+      for lists of flags or options where the last occurence takes precedence
+      over the others.<br>
+</div>
+<br>
+<h1 id="converters">Predefined converters</h1><br>
+<pre><span id="VALbool"><span class="keyword">val</span> bool</span> : <code class="type">bool <a href="Cmdliner.Arg.html#TYPEconverter">converter</a></code></pre><div class="info">
+<code class="code">bool</code> converts values with <code class="code">bool_of_string</code>.<br>
+</div>
+<pre><span id="VALchar"><span class="keyword">val</span> char</span> : <code class="type">char <a href="Cmdliner.Arg.html#TYPEconverter">converter</a></code></pre><div class="info">
+<code class="code">char</code> converts values by ensuring the argument has a single char.<br>
+</div>
+<pre><span id="VALint"><span class="keyword">val</span> int</span> : <code class="type">int <a href="Cmdliner.Arg.html#TYPEconverter">converter</a></code></pre><div class="info">
+<code class="code">int</code> converts values with <code class="code">int_of_string</code>.<br>
+</div>
+<pre><span id="VALnativeint"><span class="keyword">val</span> nativeint</span> : <code class="type">nativeint <a href="Cmdliner.Arg.html#TYPEconverter">converter</a></code></pre><div class="info">
+<code class="code">nativeint</code> converts values with <code class="code"><span class="constructor">Nativeint</span>.of_string</code>.<br>
+</div>
+<pre><span id="VALint32"><span class="keyword">val</span> int32</span> : <code class="type">int32 <a href="Cmdliner.Arg.html#TYPEconverter">converter</a></code></pre><div class="info">
+<code class="code">int32</code> converts values with <code class="code"><span class="constructor">Int32</span>.of_string</code>.<br>
+</div>
+<pre><span id="VALint64"><span class="keyword">val</span> int64</span> : <code class="type">int64 <a href="Cmdliner.Arg.html#TYPEconverter">converter</a></code></pre><div class="info">
+<code class="code">int64</code> converts values with <code class="code"><span class="constructor">Int64</span>.of_string</code>.<br>
+</div>
+<pre><span id="VALfloat"><span class="keyword">val</span> float</span> : <code class="type">float <a href="Cmdliner.Arg.html#TYPEconverter">converter</a></code></pre><div class="info">
+<code class="code">float</code> converts values with <code class="code">float_of_string</code>.<br>
+</div>
+<pre><span id="VALstring"><span class="keyword">val</span> string</span> : <code class="type">string <a href="Cmdliner.Arg.html#TYPEconverter">converter</a></code></pre><div class="info">
+<code class="code">string</code> converts values with the identity function.<br>
+</div>
+<pre><span id="VALenum"><span class="keyword">val</span> enum</span> : <code class="type">(string * 'a) list -> 'a <a href="Cmdliner.Arg.html#TYPEconverter">converter</a></code></pre><div class="info">
+<code class="code">enum l p</code> converts values such that unambiguous prefixes of string names 
+      in <code class="code">l</code> map to the corresponding value of type <code class="code"><span class="keywordsign">'</span>a</code>.<br>
+</div>
+<pre><span id="VALfile"><span class="keyword">val</span> file</span> : <code class="type">string <a href="Cmdliner.Arg.html#TYPEconverter">converter</a></code></pre><div class="info">
+<code class="code">file</code> converts a value with the identity function and
+      checks with <code class="code"><span class="constructor">Sys</span>.file_exists</code> that a file with that name exists.<br>
+</div>
+<pre><span id="VALdir"><span class="keyword">val</span> dir</span> : <code class="type">string <a href="Cmdliner.Arg.html#TYPEconverter">converter</a></code></pre><div class="info">
+<code class="code">dir</code> converts a value with the identity function and checks
+      with <code class="code"><span class="constructor">Sys</span>.file_exists</code> and <code class="code"><span class="constructor">Sys</span>.is_directory</code> 
+      that a directory with that name exists.<br>
+</div>
+<pre><span id="VALnon_dir_file"><span class="keyword">val</span> non_dir_file</span> : <code class="type">string <a href="Cmdliner.Arg.html#TYPEconverter">converter</a></code></pre><div class="info">
+<code class="code">non_dir_file</code> converts a value with the identity function and checks
+      with <code class="code"><span class="constructor">Sys</span>.file_exists</code> and <code class="code"><span class="constructor">Sys</span>.is_directory</code> 
+      that a non directory file with that name exists.<br>
+</div>
+<pre><span id="VALlist"><span class="keyword">val</span> list</span> : <code class="type">?sep:char -> 'a <a href="Cmdliner.Arg.html#TYPEconverter">converter</a> -> 'a list <a href="Cmdliner.Arg.html#TYPEconverter">converter</a></code></pre><div class="info">
+<code class="code">list sep c</code> splits the argument at each <code class="code">sep</code> (defaults to <code class="code"><span class="string">','</span></code>) 
+      character and converts each substrings with <code class="code">c</code>.<br>
+</div>
+<pre><span id="VALarray"><span class="keyword">val</span> array</span> : <code class="type">?sep:char -> 'a <a href="Cmdliner.Arg.html#TYPEconverter">converter</a> -> 'a array <a href="Cmdliner.Arg.html#TYPEconverter">converter</a></code></pre><div class="info">
+<code class="code">array sep c</code> splits the argument at each <code class="code">sep</code> (defaults to <code class="code"><span class="string">','</span></code>) 
+      character and converts each substring with <code class="code">c</code>.<br>
+</div>
+<pre><span id="VALpair"><span class="keyword">val</span> pair</span> : <code class="type">?sep:char -><br>       'a <a href="Cmdliner.Arg.html#TYPEconverter">converter</a> -><br>       'b <a href="Cmdliner.Arg.html#TYPEconverter">converter</a> -> ('a * 'b) <a href="Cmdliner.Arg.html#TYPEconverter">converter</a></code></pre><div class="info">
+<code class="code">pair sep c0 c1</code> splits the argument at the <em>first</em> <code class="code">sep</code> character 
+      (defaults to <code class="code"><span class="string">','</span></code>) and respectively converts the substrings with 
+      <code class="code">c0</code> and <code class="code">c1</code>.<br>
+</div>
+<pre><span id="VALt2"><span class="keyword">val</span> t2</span> : <code class="type">?sep:char -><br>       'a <a href="Cmdliner.Arg.html#TYPEconverter">converter</a> -><br>       'b <a href="Cmdliner.Arg.html#TYPEconverter">converter</a> -> ('a * 'b) <a href="Cmdliner.Arg.html#TYPEconverter">converter</a></code></pre><div class="info">
+<a href="Cmdliner.Arg.html#VALt2"><code class="code"><span class="constructor">Cmdliner</span>.<span class="constructor">Arg</span>.t2</code></a> is <a href="Cmdliner.Arg.html#VALpair"><code class="code"><span class="constructor">Cmdliner</span>.<span class="constructor">Arg</span>.pair</code></a>.<br>
+</div>
+<pre><span id="VALt3"><span class="keyword">val</span> t3</span> : <code class="type">?sep:char -><br>       'a <a href="Cmdliner.Arg.html#TYPEconverter">converter</a> -><br>       'b <a href="Cmdliner.Arg.html#TYPEconverter">converter</a> -><br>       'c <a href="Cmdliner.Arg.html#TYPEconverter">converter</a> -> ('a * 'b * 'c) <a href="Cmdliner.Arg.html#TYPEconverter">converter</a></code></pre><div class="info">
+<code class="code">t3 sep c0 c1 c2</code> splits the argument at the <em>first</em> two <code class="code">sep</code> 
+      characters (defaults to <code class="code"><span class="string">','</span></code>) and respectively converts the 
+      substrings with <code class="code">c0</code>, <code class="code">c1</code> and <code class="code">c2</code>.<br>
+</div>
+<pre><span id="VALt4"><span class="keyword">val</span> t4</span> : <code class="type">?sep:char -><br>       'a <a href="Cmdliner.Arg.html#TYPEconverter">converter</a> -><br>       'b <a href="Cmdliner.Arg.html#TYPEconverter">converter</a> -><br>       'c <a href="Cmdliner.Arg.html#TYPEconverter">converter</a> -><br>       'd <a href="Cmdliner.Arg.html#TYPEconverter">converter</a> -> ('a * 'b * 'c * 'd) <a href="Cmdliner.Arg.html#TYPEconverter">converter</a></code></pre><div class="info">
+<code class="code">t4 sep c0 c1 c2 c3</code> splits the argument at the <em>first</em> three <code class="code">sep</code> 
+      characters (defaults to <code class="code"><span class="string">','</span></code>) respectively converts the substrings 
+      with <code class="code">c0</code>, <code class="code">c1</code>, <code class="code">c2</code> and <code class="code">c3</code>.<br>
+</div>
+</body></html>

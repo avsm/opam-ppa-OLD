@@ -11,7 +11,6 @@ src/parser.ml
 src/parser.mli
 *.tar.bz2
 *.annot
-*.tar.gz
 *~
 ocp-build.root
 ocp-build.root.old

@@ -13,8 +13,8 @@
 \item[\hskip \labelsep {\bfseries #1}]}{\end{trivlist}}
 
 \title{
-OPAM: a Package Management Systems for OCaml\\
-Developer Manual (version 1.0)\\ ~\ \\
+OPAM: A Package Management System for OCaml\\
+Developer Manual (version 1.1)\\ ~\ \\
 ~\ \\}
 \author{Thomas GAZAGNAIRE\\
 \url{thomas.gazagnaire@ocamlpro.com}\\
@@ -194,7 +194,7 @@ syntax defined in this section.
   for instance: {\tt =}, {\tt <=}, $\ldots$ Some symbols have a special
   meaning and thus are not valid {\tt SYMBOL}s: ``\verb+(+ \verb+)+
   \verb+[+ \verb+]+ \verb+{+ \verb+}+ \verb+:+''.
-\item {\tt IDENT} starts by a letter and is followed by any number of
+\item {\tt IDENT} starts with a letter and is followed by any number of
   letters, digit and symbols, for instance: {\tt foo}, {\tt foo-bar},
   $\ldots$.
 \end{itemize}
@@ -314,6 +314,8 @@ use when trying to build the packages.
     ?depexts:       [ [STRING+] [STRING+ ]+
     ?conflicts:     [ <package>+ ]
     ?messages:      [ (STRING ?{ <filter> } )+ ]
+    ?post-messages: [ (STRING ?{ <filter> } )+ ]
+    ?available:     [ <filter> ]
     ?os:            [ <formula(os)>+ ]
     ?ocaml-version: [ <and-formula(constraint)>+ ]
     ?libraries:     [ STRING+ ]
@@ -415,7 +417,7 @@ use when trying to build the packages.
 \item The content of {\tt remove} is the command to run before deleting
   the installed file.
 
-\item The {\tt depends}, {\tt depots} and {\tt conflicts} fields
+\item The {\tt depends}, {\tt depopts} and {\tt conflicts} fields
   contain formulas over package names, optionally parametrized by
   version constraints. Some examples or package formula:
 
@@ -432,7 +434,7 @@ use when trying to build the packages.
   {\tt "foo"} lesser or equal to $1.2$ and either any version of package
   {\tt "bar"} or the version $3.14$ of package {\tt "gna"}.}''  \\
 
-The {\tt optdeps} field contains a {\em OR} formula over
+The {\tt depopts} field contains a {\em OR} formula over
   package names, which means that top-level \verb+|+ are not
   mandatory. This field express optional dependencies that
   OPAM will not try to install. However, when installing a new
@@ -443,15 +445,24 @@ The {\tt optdeps} field contains a {\em OR} formula over
 \item The {\tt depexts} field is optional and contains tags describing
   the external dependencies.
 
-\item The {\tt message} field (since version $1.0.1$) is used to
+\item The {\tt messages} field (since version $1.0.1$) is used to
   display an alternative message when prompting a solution implying
   the given package. The typical use-case is to tell the user that
   some functionality will not be available as some optional
   dependencies are not installed.
 
-\item The {\tt os} and {\tt ocaml-version} fields are optional
-  constraints over the supported OS and compiler version for this
-  package. In case the filter is not valid, the package is disabled.
+\item The {\tt post-messages} field (since version $1.1.0$) allows to print
+  specific messages to the user after the end of installation. The special
+  boolean variable \verb+failure+ is defined in the scope of the filter, and can
+  be used to print messages in case there was an error (typically, a hint on how
+  it can be resolved, or a link to an open issue). \verb+success+ is also
+  defined as syntactic sugar for \verb+!failure+.
+
+\item The {\tt available} field (since version $1.1.0$) can be used to add
+  constraints on the OS and OCaml versions currently in use, using the built-in
+  \verb+os+ and \verb+ocaml-version+ variables. In case the filter is not valid,
+  the package is disabled. The {\tt os} and {\tt ocaml-version} fields are
+  deprecated, please use {\tt available} instead in newly created packages.
 
 \item The {\tt libraries} and {\tt syntax} fields contain the
   libraries and syntax extensions defined by the package. See
@@ -488,10 +499,10 @@ in \S\ref{file:general} with the following restrictions:
 \item Files listed under {\tt bin} are copied into \verb+$bin/+.
 \item Files listed under {\tt doc} are copied into \verb+$doc/$NAME/+.
 \item Files listed under {\tt toplevel} are copied into \verb+$prefix/toplevel+.
-\item Files lister under {\tt stulibs} are copied into \verb+$lib/stublibs/+
+\item Files lister under {\tt stublibs} are copied into \verb+$lib/stublibs/+
 \item Files listed under {\tt man} are copied into
   \verb+$lib/man/man3+. You can change the sub-directory by setting
-  the righ optional argument (for instance:
+  the right optional argument (for instance:
   \verb+man: [ "foo.1" {"man1"} ]+.
 \item Files listed under {\tt misc} are processed as follows:
   for each pair \verb+$SRC { $DST }+, the tool asks the user if
@@ -501,16 +512,16 @@ in \S\ref{file:general} with the following restrictions:
 General remarks:
 \begin{itemize}
 
-\item You control where the file are copied under the given prefix by
+\item You control where the files are copied under the given prefix by
   using the optional argument. For instance:
   \verb+doc: [ "_build/foo.html" {"foo/index.html"} ]+ will copy the
   given HTML page under \verb+$doc/$NAME/foo/index.html+.
 
-\item OPAM will try to install all the file in sequence, and it will
+\item OPAM will try to install all the files in sequence, and it will
   fail in case a source filename is not available. To tell OPAM a
   source filename might not be generated (because of byte/native
   constraints or because of optional dependencies) the source filename
-  should start by \verb+?+.
+  should start with \verb+?+.
 
 \item It is much cleaner if the underlying build-system can generate
   the right \verb+$NAME.install+ files, containing the existing files only.
@@ -990,9 +1001,13 @@ The syntax of {\tt .comp} files follows the one described in
     ?requires:  [ STRING+ ]
     ?pp:        [ <ppflag>+ ]
     ?preinstalled: BOOL
+    ?env:       [ <env>+ ]
 
 <ppflag> := CAMLP4 { STRING+ }
           | STRING+
+
+<env>    := IDENT <eq> STRING
+<eq>     := '=' | '+=' | '=+' | ':=' | '=:'
 \end{Verbatim}
 }
 \begin{itemize}
@@ -1044,6 +1059,20 @@ The syntax of {\tt .comp} files follows the one described in
 
 \item {\tt preinstall} is {\tt true} when the version of the compiler available
   in the path is the same as {\tt name}.
+
+\item {\tt env} is the list of environment variables to set in the
+  given compiler switch:
+\begin{itemize}
+\item {\tt VAR = "value"} set the variable to the given value;
+\item {\tt VAR += "value"} prepend the given value to the variable;
+\item {\tt VAR =+ "value"} append the given value to the variable;
+\item {\tt VAR := "value"} prepend the given value to the variable,
+  separated by a colon. If the variable was empty, add the
+  colon anyway.
+\item {\tt VAR =: "value"} append the given value to the variable,
+  separated by a colon. If the variable was empty, add the colon
+  anyway.
+\end{itemize}
 \end{itemize}
 
 For instance the file, {\tt 3.12.1+memprof.comp} describes OCaml,
@@ -1055,6 +1084,7 @@ name:         "3.12.1"
 src:          "http://caml.inria.fr/pub/distrib/ocaml-3.12/ocaml-3.12.1.tar.gz"
 make:         [ "world" "world.opt" ]
 patches:      [ "http://bozman.cagdas.free.fr/documents/ocamlmemprof-3.12.0.patch" ]
+env:          [ CAML_LD_LIBRARY_PATH = "%{lib}%/stublibs" ]
 \end{verbatim}
 
 And the file {\tt trunk-g-notk-byte.comp} describes OCaml from SVN
@@ -1069,6 +1099,7 @@ configure:    [ "-no-tk" ]
 make:         [ "world" ]
 bytecomp:     [ "-g" ]
 bytelink:     [ "-g" ]
+env:          [ CAML_LD_LIBRARY_PATH = "%{lib}%/stublibs" ]
 \end{verbatim}
 
 \subsection{Commands}
@@ -1134,7 +1165,7 @@ This command will:
 Any file can be processed using generated using a special mode of
 {\tt opam} which can perform tests and substitutes variables (see
 \S\ref{section:config} for the exact command to run). Substitution files
-contains some templates which will be replaced by some contents. The
+contains some templates which will be replaced with some contents. The
 syntax of templates is the following:
 
 \begin{itemize}

@@ -37,15 +37,15 @@ val mkdir: Dir.t -> unit
 (** List the sub-directory recursively *)
 val rec_dirs: Dir.t -> Dir.t list
 
-(** List the sub-directory *)
-val sub_dirs: Dir.t -> Dir.t list
+(** List the sub-directory (do not recurse) *)
+val dirs: Dir.t -> Dir.t list
 
 (** Evaluate a function in a given directory *)
 val in_dir: Dir.t -> (unit -> 'a) -> 'a
 
 (** Execute a list of commands in a given directory *)
 val exec: Dir.t -> ?env:(string * string) list -> ?name:string ->
-  ?metadata:(string * string) list -> string list list -> unit
+  ?metadata:(string * string) list -> ?keep_going:bool -> string list list -> unit
 
 (** Move a directory *)
 val move_dir: src:Dir.t -> dst:Dir.t -> unit
@@ -72,6 +72,11 @@ val raw_dir: string -> Dir.t
 val with_tmp_dir: (Dir.t -> 'a) -> 'a
 
 include OpamMisc.ABSTRACT
+
+(** Generic filename *)
+type generic_file =
+  | D of Dir.t
+  | F of t
 
 (** Create a filename from a Dir.t and a basename *)
 val create: Dir.t -> Base.t -> t
@@ -101,6 +106,9 @@ val basename: t -> Base.t
 (** Retrieves the contents from the hard disk. *)
 val read: t -> string
 
+(** Open a channel from a given file. *)
+val open_in: t -> in_channel
+
 (** Removes everything in [filename] if existed. *)
 val remove: t -> unit
 
@@ -122,11 +130,16 @@ val chop_extension: t -> t
 (** List all the filenames, recursively *)
 val rec_files: Dir.t -> t list
 
+(** List all the filename. Do not recurse. *)
+val files: Dir.t -> t list
+
 (** Apply a function on the contents of a file *)
 val with_contents: (string -> 'a) -> t -> 'a
 
-(** Copy a file in a directory *)
-val copy_in: t -> Dir.t -> unit
+(** Copy a file in a directory. If [root] is set, copy also the
+    sub-directories. For instance, [copy_in ~root:"/foo" "/foo/bar/gni"
+    "/toto"] creates ["/toto/bar/gni"]. *)
+val copy_in: ?root:Dir.t -> t -> Dir.t -> unit
 
 (** Move a file *)
 val move: src:t -> dst:t -> unit
@@ -153,6 +166,9 @@ val extract: t -> Dir.t -> unit
 (** Extract an archive in a given directory (which should already exists) *)
 val extract_in: t -> Dir.t -> unit
 
+(** Extract a generic file *)
+val extract_generic_file: generic_file -> Dir.t -> unit
+
 (** Check whether a filename starts by a given Dir.t *)
 val starts_with: Dir.t -> t -> bool
 
@@ -178,18 +194,26 @@ val patch: t -> Dir.t -> unit
 (** Compute the MD5 digest of a file *)
 val digest: t -> string
 
+(** Compute the MD5 digest a file. Return the empty list if the file
+    does not exist. *)
+val checksum: t -> string list
+
+(** Compute the MD5 digest for all files in a directory. *)
+val checksum_dir: Dir.t -> string list
+
 (** Create an empty file *)
 val touch: t -> unit
 
 (** Change file permissions *)
 val chmod: t -> int -> unit
 
-(** Create an local of remote address from a string,
-    depending whether the string exits in the filesystem. *)
-val address_of_string: string -> Dir.t
-
 (** File locks *)
 val with_flock: t -> ('a -> 'b) -> 'a -> 'b
+
+(** [copy_if_check t src dst] copies all the files from one directory
+    to another. Do nothing if OPAMDONOTCOPYFILE is set to a non-empty
+    value. *)
+val copy_files: src:Dir.t -> dst:Dir.t -> unit
 
 module OP: sig
 
@@ -219,3 +243,6 @@ module Attribute: sig
   val create: Base.t -> string -> int -> t
 
 end
+
+(** Convert a filename to an attribute, relatively to a root *)
+val to_attribute: Dir.t -> t -> Attribute.t

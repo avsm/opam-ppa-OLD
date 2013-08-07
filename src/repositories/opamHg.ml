@@ -21,50 +21,42 @@ let log fmt = OpamGlobals.log "HG" fmt
 
 module Hg = struct
 
-  type address = {
-    address: dirname;
-    commit : string option;
-  }
-
-  (* A hg address could be of the form: hg://path/to/the/repository/#SHA *)
-  let address repo =
-    let address = OpamFilename.Dir.to_string repo.repo_address in
-    let address, commit = OpamMisc.hg_of_string address in
-    { address = OpamFilename.raw_dir address; commit }
-
   let exists repo =
     OpamFilename.exists_dir (repo.repo_root / ".hg")
 
   let init repo =
-    let address = address repo in
-    let repo = OpamFilename.Dir.to_string address.address in
-    ( OpamSystem.command [ "hg" ; "init" ];
-      OpamFilename.write (OpamFilename.of_string ".hg/hgrc")
-        (Printf.sprintf "[paths]\ndefault = %s\n" repo)
-    )
+    OpamFilename.in_dir repo.repo_root (fun () ->
+        OpamSystem.command [ "hg" ; "init" ];
+        OpamFilename.write
+          (OpamFilename.of_string ".hg/hgrc")
+          (Printf.sprintf "[paths]\ndefault = %s\n" (fst repo.repo_address));
+      )
 
   let fetch repo =
-    let address = address repo in
-    OpamGlobals.msg "%-10s Synchronizing with %s%s\n"
-      (OpamRepositoryName.to_string repo.repo_name)
-      (OpamFilename.prettify_dir address.address)
-      (match address.commit with
-       | None   -> ""
-       | Some c -> Printf.sprintf " [%s]" c);
     OpamFilename.in_dir repo.repo_root (fun () ->
       OpamSystem.command [ "hg" ; "pull" ]
     )
+
+  let revision repo =
+    OpamFilename.in_dir repo.repo_root (fun () ->
+        match OpamSystem.read_command_output [ "hg" ; "id" ; "-i" ] with
+        | []      -> "<none>"
+        | full::_ ->
+          if String.length full > 8 then
+            String.sub full 0 8
+          else
+            full
+      )
 
   let unknown_commit commit =
     OpamSystem.internal_error "Unknown mercurial revision/branch/bookmark: %s."
       commit
 
-  let merge repo =
-    let address = address repo in
+  let reset repo =
     let merge commit =
-      try OpamSystem.command [ "hg" ; "update" ; commit ]; true
+      try OpamSystem.command [ "hg" ; "update" ; "--clean"; commit ]; true
       with _ -> false in
-    let commit = match address.commit with
+    let commit = match snd repo.repo_address with
       | None   -> "tip"
       | Some c -> c in
     OpamFilename.in_dir repo.repo_root (fun () ->
@@ -73,13 +65,12 @@ module Hg = struct
     )
 
   let diff repo =
-    let address = address repo in
     let diff commit =
       try Some (
         OpamSystem.read_command_output
           ["hg" ; "diff" ; "--stat" ; "-r" ; commit ])
       with _ -> None in
-    let commit = match address.commit with
+    let commit = match snd repo.repo_address with
       | None   -> "tip"
       | Some c -> c in
     OpamFilename.in_dir repo.repo_root (fun () ->
